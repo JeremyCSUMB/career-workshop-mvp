@@ -1,0 +1,14 @@
+[build]
+  # No build step needed — static files served directly
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+
+# CORS headers for the function endpoint
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Content-Type"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"

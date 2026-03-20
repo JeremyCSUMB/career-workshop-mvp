@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Career Intelligence Workshop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Nudge toast banner -->
+  <div id="nudge-banner" class="ws-nudge-banner">
+    <div class="ws-nudge-banner__inner">
+      <div class="ws-nudge-banner__text">
+        <div class="ws-nudge-banner__label">From your facilitator</div>
+        <div id="nudge-text"></div>
+      </div>
+      <button id="nudge-dismiss" class="ws-nudge-banner__dismiss" aria-label="Dismiss">&times;</button>
+    </div>
+  </div>
+
+  <header class="ws-header">
+    <h1>Career Intelligence Workshop</h1>
+    <p>Peer interview — discover capabilities you didn't know you had.</p>
+  </header>
+
+  <main class="ws-container">
+
+    <!-- Screen 1: Entry / Join -->
+    <div id="screen-entry" class="ws-screen ws-screen--active">
+      <div class="ws-card">
+        <h2>Join Your Room</h2>
+        <p>Enter the session code your facilitator shared, your room number, and your name.</p>
+        <div class="ws-field">
+          <label class="ws-label" for="entry-session">Session Code</label>
+          <input id="entry-session" class="ws-input" type="text" maxlength="6" placeholder="e.g. A1B2C3" autocomplete="off">
+        </div>
+        <div class="ws-field">
+          <label class="ws-label" for="entry-room">Room Number</label>
+          <input id="entry-room" class="ws-input" type="number" min="1" placeholder="e.g. 3">
+        </div>
+        <div class="ws-field">
+          <label class="ws-label" for="entry-name">Your Name</label>
+          <input id="entry-name" class="ws-input" type="text" placeholder="First and last name" autocomplete="name">
+        </div>
+        <div id="entry-error" class="ws-error ws-hidden"></div>
+        <div class="ws-btn-row">
+          <button id="btn-join" class="ws-btn">Join Room</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 2: Waiting for partner -->
+    <div id="screen-waiting" class="ws-screen">
+      <div class="ws-card ws-card--centered">
+        <div class="ws-waiting">
+          <div class="ws-waiting__dots">
+            <div class="ws-waiting__dot"></div>
+            <div class="ws-waiting__dot"></div>
+            <div class="ws-waiting__dot"></div>
+          </div>
+          <p id="waiting-message">Waiting for your partner to join...</p>
+          <div id="waiting-names" class="ws-partner-names ws-hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 3: Interview round -->
+    <div id="screen-interview" class="ws-screen">
+      <div class="ws-round-header">
+        <div class="ws-round-header__left">
+          <h2 id="round-title">Round 1 of 2</h2>
+          <p id="round-roles"></p>
+        </div>
+        <div id="round-badge" class="ws-round-header__badge"></div>
+      </div>
+
+      <div class="ws-prompt-card">
+        <p>Tell your partner about a time you had to figure something out where there wasn't a clear answer. Any context — work, school, personal. Don't pick the most impressive story. Pick what comes to mind first. 3-4 minutes.</p>
+      </div>
+
+      <!-- Interviewer view -->
+      <div id="interviewer-view" class="ws-hidden">
+        <span class="ws-role-label ws-role-label--interviewer">You are the interviewer</span>
+
+        <!-- Phase: initial notes -->
+        <div id="phase-notes">
+          <div class="ws-field">
+            <label class="ws-label" for="notes-textarea">Capture what your partner shares</label>
+            <textarea id="notes-textarea" class="ws-textarea" placeholder="Listen carefully and write down what they did, how they approached it, and what happened..."></textarea>
+            <div id="notes-autosave" class="ws-autosave">Saved</div>
+          </div>
+          <div class="ws-btn-row">
+            <button id="btn-submit-notes" class="ws-btn">Submit Notes</button>
+          </div>
+        </div>
+
+        <!-- Phase: follow-up questions -->
+        <div id="phase-followup" class="ws-hidden">
+          <h3 style="margin:0 0 8px;font-size:17px;color:var(--ci-accent);">Follow-up questions to dig deeper</h3>
+          <div id="followup-cards" class="ws-followup-cards"></div>
+          <div class="ws-field" style="margin-top:16px;">
+            <label class="ws-label" for="followup-textarea">Follow-up notes</label>
+            <textarea id="followup-textarea" class="ws-textarea" placeholder="Capture their answers to the follow-up questions..."></textarea>
+            <div id="followup-autosave" class="ws-autosave">Saved</div>
+          </div>
+          <div class="ws-btn-row">
+            <button id="btn-submit-followup" class="ws-btn">Submit Follow-up Notes</button>
+          </div>
+        </div>
+
+        <!-- Phase: profile -->
+        <div id="phase-profile" class="ws-hidden">
+          <div class="ws-btn-row" style="margin-bottom:16px;">
+            <button id="btn-end-round" class="ws-btn">End Round &amp; Generate Profile</button>
+          </div>
+          <div id="profile-loading" class="ws-hidden">
+            <div class="ws-waiting__dots" style="justify-content:flex-start;">
+              <div class="ws-waiting__dot"></div>
+              <div class="ws-waiting__dot"></div>
+              <div class="ws-waiting__dot"></div>
+            </div>
+          </div>
+          <div id="profile-result" class="ws-profile-card ws-hidden">
+            <h3>Capability Profile</h3>
+            <p id="profile-summary"></p>
+            <div id="profile-tags" class="ws-capability-tags"></div>
+            <div class="ws-add-tag-row">
+              <input id="custom-tag-input" class="ws-input" type="text" placeholder="Add a capability tag...">
+              <button id="btn-add-tag" class="ws-btn ws-btn--small ws-btn--secondary">Add</button>
+            </div>
+          </div>
+          <div id="profile-done" class="ws-hidden" style="margin-top:20px;">
+            <button id="btn-next-round" class="ws-btn">Continue to Round 2</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Storyteller view -->
+      <div id="storyteller-view" class="ws-hidden">
+        <span class="ws-role-label ws-role-label--storyteller">You are the storyteller</span>
+        <div class="ws-storyteller-message">
+          <p>Share your story with your partner. They are taking notes.<br>Take your time — 3-4 minutes is the goal.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 4: Complete -->
+    <div id="screen-complete" class="ws-screen">
+      <div class="ws-card ws-card--centered">
+        <h2>Both rounds complete!</h2>
+        <p>Great work. Your facilitator will share next steps.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script type="module" src="interview.js"></script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workshop Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Overview bar (sticky, shown when monitoring) -->
+  <div id="overview-bar" class="ws-overview ws-hidden">
+    <div class="ws-overview__inner">
+      <div class="ws-overview__stat">
+        <span class="ws-overview__count" id="ov-total">0</span>
+        <span class="ws-overview__label">rooms</span>
+      </div>
+      <div class="ws-overview__divider"></div>
+      <div class="ws-overview__stat">
+        <span class="ws-overview__dot ws-overview__dot--red"></span>
+        <span id="ov-red">0</span>
+      </div>
+      <div class="ws-overview__stat">
+        <span class="ws-overview__dot ws-overview__dot--yellow"></span>
+        <span id="ov-yellow">0</span>
+      </div>
+      <div class="ws-overview__stat">
+        <span class="ws-overview__dot ws-overview__dot--green"></span>
+        <span id="ov-green">0</span>
+      </div>
+      <div class="ws-overview__divider"></div>
+      <div id="ov-dot-strip" class="ws-dot-strip"></div>
+    </div>
+  </div>
+
+  <header id="dash-header" class="ws-header ws-header--wide">
+    <h1>Workshop Dashboard</h1>
+    <p id="dash-subtitle">Facilitator view</p>
+  </header>
+
+  <main class="ws-container ws-container--wide">
+
+    <!-- Screen: Login -->
+    <div id="screen-login" class="ws-screen ws-screen--active">
+      <div class="ws-card" style="max-width:400px;margin:0 auto;">
+        <h2>Facilitator Login</h2>
+        <div class="ws-field">
+          <label class="ws-label" for="login-password">Password</label>
+          <input id="login-password" class="ws-input" type="password" placeholder="Enter password">
+        </div>
+        <div id="login-error" class="ws-error ws-hidden"></div>
+        <div class="ws-btn-row">
+          <button id="btn-login" class="ws-btn">Log In</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen: Session management -->
+    <div id="screen-session" class="ws-screen">
+      <div class="ws-card" style="max-width:500px;margin:0 auto;">
+        <h2>Create or Join a Session</h2>
+
+        <div style="margin-bottom:24px;">
+          <h3 style="font-size:16px;margin:0 0 8px;">Create New Session</h3>
+          <div class="ws-field">
+            <label class="ws-label" for="new-session-name">Session Name</label>
+            <input id="new-session-name" class="ws-input" type="text" placeholder="e.g. CST395 Week 10">
+          </div>
+          <div class="ws-field">
+            <label class="ws-label" for="new-room-count">Number of Rooms</label>
+            <input id="new-room-count" class="ws-input" type="number" min="1" max="50" placeholder="e.g. 12">
+          </div>
+          <div id="create-error" class="ws-error ws-hidden"></div>
+          <div class="ws-btn-row">
+            <button id="btn-create-session" class="ws-btn">Create Session</button>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--ci-border);padding-top:20px;">
+          <h3 style="font-size:16px;margin:0 0 8px;">Monitor Existing Session</h3>
+          <div class="ws-field">
+            <label class="ws-label" for="existing-session-id">Session ID</label>
+            <input id="existing-session-id" class="ws-input" type="text" maxlength="10" placeholder="e.g. A1B2C3">
+          </div>
+          <div id="monitor-error" class="ws-error ws-hidden"></div>
+          <div class="ws-btn-row">
+            <button id="btn-monitor-session" class="ws-btn ws-btn--secondary">Monitor</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen: Dashboard (room monitoring) -->
+    <div id="screen-dashboard" class="ws-screen">
+      <div id="room-grid" class="ws-room-grid"></div>
+    </div>
+
+  </main>
+
+  <!-- Nudge modal -->
+  <div id="nudge-modal" class="ws-modal-overlay">
+    <div class="ws-modal">
+      <h3>Send Nudge</h3>
+      <p id="nudge-modal-target">To Room —</p>
+      <div class="ws-nudge-suggestions">
+        <button class="ws-nudge-suggestion" data-idx="0">Translate what your partner DID into what an employer would value. Not "good communicator" but "de-escalated a customer conflict without manager support."</button>
+        <button class="ws-nudge-suggestion" data-idx="1">Ask your partner: what was the hardest part of that situation? What did you try first?</button>
+        <button class="ws-nudge-suggestion" data-idx="2">Try to get more specific — names, timelines, outcomes.</button>
+      </div>
+      <div class="ws-field">
+        <label class="ws-label" for="nudge-custom">Or write your own</label>
+        <textarea id="nudge-custom" class="ws-textarea" style="min-height:80px;" placeholder="Type a custom nudge..."></textarea>
+      </div>
+      <div class="ws-modal__footer">
+        <button id="btn-nudge-cancel" class="ws-btn ws-btn--secondary ws-btn--small">Cancel</button>
+        <button id="btn-nudge-send" class="ws-btn ws-btn--small">Send Nudge</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

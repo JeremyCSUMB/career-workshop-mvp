@@ -1,0 +1,12 @@
+{
+  "name": "career-workshop-mvp",
+  "version": "1.0.0",
+  "description": "Career-Intelligence Workshop MVP — peer interview + facilitator dashboard",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^10.7.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
