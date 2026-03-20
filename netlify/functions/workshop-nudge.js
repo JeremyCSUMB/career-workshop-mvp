@@ -26,7 +26,7 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong' });
+  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
 
   // --- GET: fetch unread nudges ---
   if (event.httpMethod === 'GET') {

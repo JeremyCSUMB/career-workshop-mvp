@@ -34,7 +34,7 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required query parameters: sessionId, roomId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong' });
+  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
 
   try {
     const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
