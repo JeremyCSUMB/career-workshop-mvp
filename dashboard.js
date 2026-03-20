@@ -114,6 +114,7 @@ function handleLogin() {
   const pw = $('login-password').value;
   if (pw === CFG.dashboard_password) {
     state.authenticated = true;
+    sessionStorage.setItem('ws_dash_auth', 'true');
     showScreen('session');
   } else {
     showError($('login-error'), 'Incorrect password.');
@@ -186,6 +187,7 @@ async function handleMonitorSession() {
    ============================================ */
 
 function startMonitoring() {
+  sessionStorage.setItem('ws_dash_sessionId', state.sessionId);
   showScreen('dashboard');
   refreshRooms();
   state.refreshInterval = setInterval(refreshRooms, CFG.dashboard_refresh_interval);
@@ -500,10 +502,26 @@ async function handleSendNudge() {
    Init
    ============================================ */
 
+function tryResume() {
+  const wasAuth = sessionStorage.getItem('ws_dash_auth') === 'true';
+  const savedSession = sessionStorage.getItem('ws_dash_sessionId');
+
+  if (wasAuth && savedSession) {
+    state.authenticated = true;
+    state.sessionId = savedSession;
+    $('dash-subtitle').textContent = `Session: ${state.sessionId}`;
+    startMonitoring();
+  } else if (wasAuth) {
+    state.authenticated = true;
+    showScreen('session');
+  }
+}
+
 function init() {
   initLogin();
   initSession();
   initNudgeModal();
+  tryResume();
 }
 
 init();

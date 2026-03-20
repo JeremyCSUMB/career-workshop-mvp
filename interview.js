@@ -71,6 +71,16 @@ function showScreen(name) {
   screens[name].classList.add('ws-screen--active');
   state.phase = name;
   persist();
+
+  // Show leave button when in a session (not on entry screen)
+  const leaveBtn = $('btn-leave-session');
+  if (leaveBtn) {
+    if (name === 'entry') {
+      leaveBtn.classList.add('ws-hidden');
+    } else {
+      leaveBtn.classList.remove('ws-hidden');
+    }
+  }
 }
 
 function showError(el, msg) {
@@ -616,10 +626,45 @@ function tryResume() {
    Init
    ============================================ */
 
+function leaveSession() {
+  // Stop all intervals
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  if (nudgeInterval) { clearInterval(nudgeInterval); nudgeInterval = null; }
+  if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; }
+  if (storytellerPollInterval) { clearInterval(storytellerPollInterval); storytellerPollInterval = null; }
+  Object.values(debounceTimers).forEach(clearTimeout);
+  debounceTimers = {};
+
+  // Clear state
+  state.sessionId = '';
+  state.roomId = '';
+  state.studentName = '';
+  state.round = 1;
+  state.phase = 'entry';
+  state.students = [];
+  state.role = null;
+  state.partnerName = '';
+  state.customTags = [];
+
+  // Clear localStorage
+  ['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase'].forEach(k => localStorage.removeItem(k));
+
+  // Reset form inputs
+  $('entry-session').value = '';
+  $('entry-room').value = '';
+  $('entry-name').value = '';
+
+  // Hide leave button, show entry
+  $('btn-leave-session').classList.add('ws-hidden');
+  showScreen('entry');
+}
+
 function init() {
   initEntry();
 
   $('nudge-dismiss').addEventListener('click', dismissNudge);
+  $('btn-leave-session').addEventListener('click', leaveSession);
+  $('btn-leave-complete').addEventListener('click', leaveSession);
 
   tryResume();
 }

@@ -916,6 +916,31 @@ body {
 }
 
 /* ============================================
+   Leave Session Button
+   ============================================ */
+
+.ws-leave-btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 6px 16px;
+  font-family: var(--ci-font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ci-text-muted);
+  background: transparent;
+  border: 1px solid var(--ci-border);
+  border-radius: var(--ci-radius);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.ws-leave-btn:hover {
+  background: var(--ci-error-bg);
+  color: var(--ws-red);
+  border-color: var(--ws-red);
+}
+
+/* ============================================
    Hidden utility
    ============================================ */
 
