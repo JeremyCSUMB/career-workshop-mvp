@@ -99,7 +99,7 @@ exports.handler = async (event) => {
     }
   }
 
-  // --- DELETE: end session ---
+  // --- DELETE: end session (marks as ended, keeps data) ---
   if (event.httpMethod === 'DELETE') {
     let body;
     try {
@@ -114,17 +114,19 @@ exports.handler = async (event) => {
     }
 
     try {
-      // Delete all room blobs
-      const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
-      for (const blob of blobs) {
-        await store.delete(blob.key);
+      const session = await store.get(`session:${sessionId}`, { type: 'json' });
+      if (!session) {
+        return json(404, { error: 'Session not found' });
       }
-      // Delete session blob
-      await store.delete(`session:${sessionId}`);
-      return json(200, { deleted: true });
+
+      session.ended = true;
+      session.endedAt = new Date().toISOString();
+      await store.setJSON(`session:${sessionId}`, session);
+
+      return json(200, { ended: true });
     } catch (error) {
-      console.error('Delete session error:', error);
-      return json(500, { error: 'Failed to delete session' });
+      console.error('End session error:', error);
+      return json(500, { error: 'Failed to end session' });
     }
   }
 

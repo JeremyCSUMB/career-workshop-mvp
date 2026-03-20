@@ -1028,6 +1028,15 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
+.ws-session-card--ended {
+  opacity: 0.7;
+}
+
+.ws-session-card--ended .ws-session-card__code {
+  color: var(--ci-text-muted);
+  background: #f3f4f6;
+}
+
 .ws-session-card__top {
   display: flex;
   justify-content: space-between;

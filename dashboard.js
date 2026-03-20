@@ -163,46 +163,71 @@ async function handleCreateSession() {
 
 async function loadSessions() {
   const list = $('sessions-list');
+  const prevList = $('previous-list');
+  const prevSection = $('previous-section');
   const loading = $('sessions-loading');
   try {
     const data = await api('workshop-session');
     const sessions = data.sessions || [];
     if (loading) loading.classList.add('ws-hidden');
     list.innerHTML = '';
-    if (sessions.length === 0) {
+    prevList.innerHTML = '';
+
+    const live = sessions.filter(s => !s.ended).sort((a, b) => new Date(b.created) - new Date(a.created));
+    const ended = sessions.filter(s => s.ended).sort((a, b) => new Date(b.endedAt || b.created) - new Date(a.endedAt || a.created));
+
+    if (live.length === 0) {
       list.innerHTML = '<p style="color:var(--ci-text-muted);font-size:14px;">No active sessions. Create one above.</p>';
-      return;
     }
-    sessions.sort((a, b) => new Date(b.created) - new Date(a.created));
-    sessions.forEach(s => {
-      const card = document.createElement('div');
-      card.className = 'ws-session-card';
-      card.innerHTML = `
-        <div class="ws-session-card__top">
-          <div>
-            <div class="ws-session-card__name">${escHtml(s.name)}</div>
-            <div class="ws-session-card__meta">${s.roomCount} rooms &middot; Created ${relativeTime(s.created)}</div>
-          </div>
-          <div class="ws-session-card__code">${escHtml(s.id)}</div>
-        </div>
-        <div class="ws-session-card__actions">
-          <button class="ws-btn ws-btn--small" data-monitor-id="${escAttr(s.id)}">Monitor</button>
-          <button class="ws-btn ws-btn--small ws-btn--secondary" data-download-id="${escAttr(s.id)}">Download JSON</button>
-          <button class="ws-btn ws-btn--small ws-btn--danger" data-end-id="${escAttr(s.id)}">End Session</button>
-        </div>
-      `;
-      card.querySelector('[data-monitor-id]').addEventListener('click', () => {
-        state.sessionId = s.id;
-        $('dash-subtitle').textContent = `Session: ${s.id} - ${escHtml(s.name)}`;
-        startMonitoring();
-      });
-      card.querySelector('[data-download-id]').addEventListener('click', () => downloadSessionJSON(s.id, s.name));
-      card.querySelector('[data-end-id]').addEventListener('click', () => endSession(s.id, s.name));
-      list.appendChild(card);
-    });
+    live.forEach(s => list.appendChild(buildSessionCard(s, false)));
+
+    if (ended.length > 0) {
+      prevSection.classList.remove('ws-hidden');
+      ended.forEach(s => prevList.appendChild(buildSessionCard(s, true)));
+    } else {
+      prevSection.classList.add('ws-hidden');
+    }
   } catch (err) {
     if (loading) loading.textContent = 'Failed to load sessions.';
   }
+}
+
+function buildSessionCard(s, isEnded) {
+  const card = document.createElement('div');
+  card.className = 'ws-session-card' + (isEnded ? ' ws-session-card--ended' : '');
+
+  const endedLabel = isEnded && s.endedAt ? ` &middot; Ended ${relativeTime(s.endedAt)}` : '';
+
+  card.innerHTML = `
+    <div class="ws-session-card__top">
+      <div>
+        <div class="ws-session-card__name">${escHtml(s.name)}${isEnded ? ' <span style="font-size:12px;color:var(--ci-text-muted);font-weight:400;">(ended)</span>' : ''}</div>
+        <div class="ws-session-card__meta">${s.roomCount} rooms &middot; Created ${relativeTime(s.created)}${endedLabel}</div>
+      </div>
+      <div class="ws-session-card__code">${escHtml(s.id)}</div>
+    </div>
+    <div class="ws-session-card__actions">
+      ${isEnded ? '' : `<button class="ws-btn ws-btn--small" data-monitor-id="${escAttr(s.id)}">Monitor</button>`}
+      <button class="ws-btn ws-btn--small ws-btn--secondary" data-download-id="${escAttr(s.id)}">Download JSON</button>
+      ${isEnded ? '' : `<button class="ws-btn ws-btn--small ws-btn--danger" data-end-id="${escAttr(s.id)}">End Session</button>`}
+    </div>
+  `;
+
+  const monitorBtn = card.querySelector('[data-monitor-id]');
+  if (monitorBtn) {
+    monitorBtn.addEventListener('click', () => {
+      state.sessionId = s.id;
+      $('dash-subtitle').textContent = `Session: ${s.id} - ${escHtml(s.name)}`;
+      startMonitoring();
+    });
+  }
+  card.querySelector('[data-download-id]').addEventListener('click', () => downloadSessionJSON(s.id, s.name));
+  const endBtn = card.querySelector('[data-end-id]');
+  if (endBtn) {
+    endBtn.addEventListener('click', () => endSession(s.id, s.name));
+  }
+
+  return card;
 }
 
 async function downloadSessionJSON(sessionId, sessionName) {
