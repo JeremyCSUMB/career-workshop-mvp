@@ -941,6 +941,141 @@ body {
 }
 
 /* ============================================
+   Room Picker
+   ============================================ */
+
+.ws-rooms-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.ws-room-pick {
+  background: var(--ci-surface);
+  border: 2px solid var(--ci-border);
+  border-radius: var(--ci-radius);
+  padding: 14px;
+  text-align: center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ws-room-pick:hover:not(.ws-room-pick--full) {
+  border-color: var(--ci-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ws-room-pick--full {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
+
+.ws-room-pick--yours {
+  border-color: var(--ws-green);
+  background: #f0fdf4;
+  opacity: 1;
+}
+
+.ws-room-pick__number {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ci-text);
+  margin-bottom: 4px;
+}
+
+.ws-room-pick__status {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ci-text-muted);
+  margin-bottom: 6px;
+}
+
+.ws-room-pick__names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--ci-text);
+}
+
+.ws-room-pick__names span {
+  display: block;
+}
+
+.ws-room-pick__badge {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ws-green);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================
+   Session Cards
+   ============================================ */
+
+.ws-session-card {
+  background: var(--ci-surface);
+  border: 1px solid var(--ci-border);
+  border-radius: var(--ci-radius);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  transition: box-shadow 0.2s;
+}
+
+.ws-session-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.ws-session-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.ws-session-card__name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ci-text);
+}
+
+.ws-session-card__meta {
+  font-size: 13px;
+  color: var(--ci-text-muted);
+  margin-top: 2px;
+}
+
+.ws-session-card__code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ci-accent);
+  background: var(--ci-accent-light);
+  padding: 4px 12px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.ws-session-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Dashboard toolbar */
+
+.ws-dash-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+/* ============================================
    Hidden utility
    ============================================ */
 

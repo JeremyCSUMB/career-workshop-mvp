@@ -57,11 +57,9 @@
 
     <!-- Screen: Session management -->
     <div id="screen-session" class="ws-screen">
-      <div class="ws-card" style="max-width:500px;margin:0 auto;">
-        <h2>Create or Join a Session</h2>
-
-        <div style="margin-bottom:24px;">
-          <h3 style="font-size:16px;margin:0 0 8px;">Create New Session</h3>
+      <div style="max-width:600px;margin:0 auto;">
+        <div class="ws-card" style="margin-bottom:24px;">
+          <h2>Create New Session</h2>
           <div class="ws-field">
             <label class="ws-label" for="new-session-name">Session Name</label>
             <input id="new-session-name" class="ws-input" type="text" placeholder="e.g. CST395 Week 10">
@@ -76,22 +74,18 @@
           </div>
         </div>
 
-        <div style="border-top:1px solid var(--ci-border);padding-top:20px;">
-          <h3 style="font-size:16px;margin:0 0 8px;">Monitor Existing Session</h3>
-          <div class="ws-field">
-            <label class="ws-label" for="existing-session-id">Session ID</label>
-            <input id="existing-session-id" class="ws-input" type="text" maxlength="10" placeholder="e.g. A1B2C3">
-          </div>
-          <div id="monitor-error" class="ws-error ws-hidden"></div>
-          <div class="ws-btn-row">
-            <button id="btn-monitor-session" class="ws-btn ws-btn--secondary">Monitor</button>
-          </div>
-        </div>
+        <h2 style="font-size:18px;margin:0 0 12px;">Live Sessions</h2>
+        <div id="sessions-loading" style="color:var(--ci-text-muted);font-size:14px;">Loading sessions...</div>
+        <div id="sessions-list"></div>
       </div>
     </div>
 
     <!-- Screen: Dashboard (room monitoring) -->
     <div id="screen-dashboard" class="ws-screen">
+      <div class="ws-dash-toolbar">
+        <button id="btn-back-sessions" class="ws-btn ws-btn--secondary ws-btn--small">Back to Sessions</button>
+        <button id="btn-download-json" class="ws-btn ws-btn--secondary ws-btn--small">Download JSON</button>
+      </div>
       <div id="room-grid" class="ws-room-grid"></div>
     </div>
 

@@ -62,7 +62,7 @@ function api(endpoint, opts = {}) {
     : `${CFG.api_base}/${endpoint}`;
   const fetchOpts = { method: opts.method || 'GET' };
   if (opts.body) {
-    fetchOpts.method = 'POST';
+    if (!opts.method) fetchOpts.method = 'POST';
     fetchOpts.headers = { 'Content-Type': 'application/json' };
     fetchOpts.body = JSON.stringify(opts.body);
   }
@@ -116,6 +116,7 @@ function handleLogin() {
     state.authenticated = true;
     sessionStorage.setItem('ws_dash_auth', 'true');
     showScreen('session');
+    loadSessions();
   } else {
     showError($('login-error'), 'Incorrect password.');
   }
@@ -127,10 +128,6 @@ function handleLogin() {
 
 function initSession() {
   $('btn-create-session').addEventListener('click', handleCreateSession);
-  $('btn-monitor-session').addEventListener('click', handleMonitorSession);
-  $('existing-session-id').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleMonitorSession();
-  });
 }
 
 async function handleCreateSession() {
@@ -160,25 +157,95 @@ async function handleCreateSession() {
   }
 }
 
-async function handleMonitorSession() {
-  const sessionId = $('existing-session-id').value.trim();
-  const errEl = $('monitor-error');
-  hideError(errEl);
+/* ============================================
+   Session list, download, end
+   ============================================ */
 
-  if (!sessionId) return showError(errEl, 'Please enter a session ID.');
-
-  $('btn-monitor-session').disabled = true;
-
+async function loadSessions() {
+  const list = $('sessions-list');
+  const loading = $('sessions-loading');
   try {
-    // Verify session exists by fetching rooms
-    await api('workshop-rooms', { params: { sessionId } });
-    state.sessionId = sessionId;
-    $('dash-subtitle').textContent = `Session: ${state.sessionId}`;
-    startMonitoring();
+    const data = await api('workshop-session');
+    const sessions = data.sessions || [];
+    if (loading) loading.classList.add('ws-hidden');
+    list.innerHTML = '';
+    if (sessions.length === 0) {
+      list.innerHTML = '<p style="color:var(--ci-text-muted);font-size:14px;">No active sessions. Create one above.</p>';
+      return;
+    }
+    sessions.sort((a, b) => new Date(b.created) - new Date(a.created));
+    sessions.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'ws-session-card';
+      card.innerHTML = `
+        <div class="ws-session-card__top">
+          <div>
+            <div class="ws-session-card__name">${escHtml(s.name)}</div>
+            <div class="ws-session-card__meta">${s.roomCount} rooms &middot; Created ${relativeTime(s.created)}</div>
+          </div>
+          <div class="ws-session-card__code">${escHtml(s.id)}</div>
+        </div>
+        <div class="ws-session-card__actions">
+          <button class="ws-btn ws-btn--small" data-monitor-id="${escAttr(s.id)}">Monitor</button>
+          <button class="ws-btn ws-btn--small ws-btn--secondary" data-download-id="${escAttr(s.id)}">Download JSON</button>
+          <button class="ws-btn ws-btn--small ws-btn--danger" data-end-id="${escAttr(s.id)}">End Session</button>
+        </div>
+      `;
+      card.querySelector('[data-monitor-id]').addEventListener('click', () => {
+        state.sessionId = s.id;
+        $('dash-subtitle').textContent = `Session: ${s.id} - ${escHtml(s.name)}`;
+        startMonitoring();
+      });
+      card.querySelector('[data-download-id]').addEventListener('click', () => downloadSessionJSON(s.id, s.name));
+      card.querySelector('[data-end-id]').addEventListener('click', () => endSession(s.id, s.name));
+      list.appendChild(card);
+    });
   } catch (err) {
-    showError(errEl, err.message);
-  } finally {
-    $('btn-monitor-session').disabled = false;
+    if (loading) loading.textContent = 'Failed to load sessions.';
+  }
+}
+
+async function downloadSessionJSON(sessionId, sessionName) {
+  try {
+    const data = await api('workshop-rooms', { params: { sessionId } });
+    const rooms = data.rooms || [];
+    const exportData = {
+      sessionId,
+      sessionName: sessionName || sessionId,
+      exportedAt: new Date().toISOString(),
+      rooms: rooms.map(r => ({
+        roomId: r.id,
+        students: r.students,
+        currentRound: r.currentRound,
+        submissions: r.submissions,
+        aiFollowUps: r.aiFollowUps,
+        capabilityProfile: r.capabilityProfile,
+        classifications: r.classifications,
+        nudges: r.nudges,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `workshop-${sessionId}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Error downloading: ' + err.message);
+  }
+}
+
+async function endSession(sessionId, sessionName) {
+  if (!confirm(`End session "${sessionName || sessionId}"? This will delete all session data.`)) return;
+  try {
+    await api('workshop-session', {
+      method: 'DELETE',
+      body: { sessionId },
+    });
+    loadSessions();
+  } catch (err) {
+    alert('Error ending session: ' + err.message);
   }
 }
 
@@ -514,6 +581,7 @@ function tryResume() {
   } else if (wasAuth) {
     state.authenticated = true;
     showScreen('session');
+    loadSessions();
   }
 }
 
@@ -521,6 +589,23 @@ function init() {
   initLogin();
   initSession();
   initNudgeModal();
+
+  $('btn-back-sessions').addEventListener('click', () => {
+    if (state.refreshInterval) clearInterval(state.refreshInterval);
+    if (state.inactivityInterval) clearInterval(state.inactivityInterval);
+    state.refreshInterval = null;
+    state.inactivityInterval = null;
+    state.sessionId = '';
+    sessionStorage.removeItem('ws_dash_sessionId');
+    $('dash-subtitle').textContent = 'Facilitator view';
+    loadSessions();
+    showScreen('session');
+  });
+
+  $('btn-download-json').addEventListener('click', () => {
+    if (state.sessionId) downloadSessionJSON(state.sessionId, '');
+  });
+
   tryResume();
 }
 

@@ -27,18 +27,14 @@
 
   <main class="ws-container">
 
-    <!-- Screen 1: Entry / Join -->
+    <!-- Screen 1: Entry -->
     <div id="screen-entry" class="ws-screen ws-screen--active">
       <div class="ws-card">
-        <h2>Join Your Room</h2>
-        <p>Enter the session code your facilitator shared, your room number, and your name.</p>
+        <h2>Join a Workshop</h2>
+        <p>Enter the session code from your facilitator and your name.</p>
         <div class="ws-field">
           <label class="ws-label" for="entry-session">Session Code</label>
-          <input id="entry-session" class="ws-input" type="text" maxlength="6" placeholder="e.g. A1B2C3" autocomplete="off">
-        </div>
-        <div class="ws-field">
-          <label class="ws-label" for="entry-room">Room Number</label>
-          <input id="entry-room" class="ws-input" type="number" min="1" placeholder="e.g. 3">
+          <input id="entry-session" class="ws-input" type="text" maxlength="10" placeholder="e.g. a1b2c3" autocomplete="off">
         </div>
         <div class="ws-field">
           <label class="ws-label" for="entry-name">Your Name</label>
@@ -46,8 +42,18 @@
         </div>
         <div id="entry-error" class="ws-error ws-hidden"></div>
         <div class="ws-btn-row">
-          <button id="btn-join" class="ws-btn">Join Room</button>
+          <button id="btn-find-rooms" class="ws-btn">Find Rooms</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Screen 1b: Room picker -->
+    <div id="screen-rooms" class="ws-screen">
+      <div class="ws-card">
+        <h2>Choose a Room</h2>
+        <p id="rooms-subtitle">Select an available room to join.</p>
+        <div id="rooms-grid" class="ws-rooms-picker"></div>
+        <div id="rooms-error" class="ws-error ws-hidden"></div>
       </div>
     </div>
 

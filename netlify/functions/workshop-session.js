@@ -10,7 +10,7 @@ const { getStore } = require('@netlify/blobs');
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 };
 
 function json(statusCode, data) {
@@ -96,6 +96,35 @@ exports.handler = async (event) => {
     } catch (error) {
       console.error('Create session error:', error);
       return json(500, { error: 'Failed to create session' });
+    }
+  }
+
+  // --- DELETE: end session ---
+  if (event.httpMethod === 'DELETE') {
+    let body;
+    try {
+      body = JSON.parse(event.body);
+    } catch {
+      return json(400, { error: 'Invalid JSON in request body' });
+    }
+
+    const { sessionId } = body;
+    if (!sessionId) {
+      return json(400, { error: 'Missing required field: sessionId' });
+    }
+
+    try {
+      // Delete all room blobs
+      const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
+      for (const blob of blobs) {
+        await store.delete(blob.key);
+      }
+      // Delete session blob
+      await store.delete(`session:${sessionId}`);
+      return json(200, { deleted: true });
+    } catch (error) {
+      console.error('Delete session error:', error);
+      return json(500, { error: 'Failed to delete session' });
     }
   }
 

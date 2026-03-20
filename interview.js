@@ -32,6 +32,7 @@ const $ = (id) => document.getElementById(id);
 
 const screens = {
   entry: $('screen-entry'),
+  rooms: $('screen-rooms'),
   waiting: $('screen-waiting'),
   interview: $('screen-interview'),
   complete: $('screen-complete'),
@@ -193,24 +194,20 @@ function dismissNudge() {
    ============================================ */
 
 function initEntry() {
-  // Pre-fill from localStorage
   if (state.sessionId) $('entry-session').value = state.sessionId;
-  if (state.roomId) $('entry-room').value = state.roomId;
   if (state.studentName) $('entry-name').value = state.studentName;
 
-  $('btn-join').addEventListener('click', handleJoin);
+  $('btn-find-rooms').addEventListener('click', handleFindRooms);
 
-  // Allow Enter key to submit
-  ['entry-session', 'entry-room', 'entry-name'].forEach((id) => {
+  ['entry-session', 'entry-name'].forEach((id) => {
     $(id).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleJoin();
+      if (e.key === 'Enter') handleFindRooms();
     });
   });
 }
 
-async function handleJoin() {
+async function handleFindRooms() {
   const sessionId = $('entry-session').value.trim();
-  const roomId = $('entry-room').value.trim();
   const studentName = $('entry-name').value.trim();
   const errEl = $('entry-error');
   hideError(errEl);
@@ -218,23 +215,81 @@ async function handleJoin() {
   if (!sessionId || sessionId.length < 4) {
     return showError(errEl, 'Please enter a valid session code.');
   }
-  if (!roomId) {
-    return showError(errEl, 'Please enter your room number.');
-  }
   if (!studentName || studentName.length < 2) {
     return showError(errEl, 'Please enter your name.');
   }
 
-  $('btn-join').disabled = true;
-  $('btn-join').textContent = 'Joining...';
+  $('btn-find-rooms').disabled = true;
+  $('btn-find-rooms').textContent = 'Loading...';
+
+  try {
+    const data = await api('workshop-rooms', { params: { sessionId } });
+    const rooms = data.rooms || [];
+    if (rooms.length === 0) {
+      return showError(errEl, 'No rooms found for that session code.');
+    }
+
+    state.sessionId = sessionId;
+    state.studentName = studentName;
+    persist();
+    renderRoomPicker(rooms);
+    showScreen('rooms');
+  } catch (err) {
+    showError(errEl, err.message);
+  } finally {
+    $('btn-find-rooms').disabled = false;
+    $('btn-find-rooms').textContent = 'Find Rooms';
+  }
+}
+
+function renderRoomPicker(rooms) {
+  const grid = $('rooms-grid');
+  grid.innerHTML = '';
+
+  rooms.forEach((room) => {
+    const names = extractStudentNames(room.students);
+    const count = names.length;
+    const isFull = count >= 2;
+    const alreadyIn = names.includes(state.studentName);
+
+    const card = document.createElement('div');
+    card.className = 'ws-room-pick' + (isFull && !alreadyIn ? ' ws-room-pick--full' : '') + (alreadyIn ? ' ws-room-pick--yours' : '');
+
+    let statusText = 'Empty';
+    if (count === 1) statusText = '1 / 2';
+    if (count >= 2) statusText = 'Full';
+
+    card.innerHTML = `
+      <div class="ws-room-pick__number">Room ${room.id}</div>
+      <div class="ws-room-pick__status">${statusText}</div>
+      <div class="ws-room-pick__names">${names.length > 0 ? names.map(n => `<span>${escHtml(n)}</span>`).join('') : '<span style="color:var(--ci-text-muted)">No one yet</span>'}</div>
+      ${alreadyIn ? '<div class="ws-room-pick__badge">You are here</div>' : ''}
+    `;
+
+    if (!isFull || alreadyIn) {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () => joinRoom(room.id));
+    }
+
+    grid.appendChild(card);
+  });
+}
+
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+async function joinRoom(roomId) {
+  const errEl = $('rooms-error');
+  hideError(errEl);
 
   try {
     await api('workshop-join', {
-      body: { sessionId, roomId, studentName },
+      body: { sessionId: state.sessionId, roomId: String(roomId), studentName: state.studentName },
     });
-    state.sessionId = sessionId;
-    state.roomId = roomId;
-    state.studentName = studentName;
+    state.roomId = String(roomId);
     persist();
     startHeartbeat();
     startNudgePolling();
@@ -242,9 +297,6 @@ async function handleJoin() {
     startWaitingPoll();
   } catch (err) {
     showError(errEl, err.message);
-  } finally {
-    $('btn-join').disabled = false;
-    $('btn-join').textContent = 'Join Room';
   }
 }
 
@@ -651,7 +703,6 @@ function leaveSession() {
 
   // Reset form inputs
   $('entry-session').value = '';
-  $('entry-room').value = '';
   $('entry-name').value = '';
 
   // Hide leave button, show entry
