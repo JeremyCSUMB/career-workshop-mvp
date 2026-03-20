@@ -35,7 +35,7 @@ Each student does both roles: interviewer in one round, storyteller in the other
 #### 1. Create a Session
 
 1. Go to the **Dashboard** at `/dashboard.html`
-2. Enter the password: `workshop2026`
+2. Enter the dashboard password
 3. Under "Create New Session", enter:
    - **Session Name** — e.g., "CST395 Week 10"
    - **Number of Rooms** — one per student pair (e.g., 12 rooms for 24 students)
@@ -331,7 +331,7 @@ npx netlify deploy --prod
 
 ## Security Notes
 
-- The dashboard password (`workshop2026`) is a simple client-side check for MVP. Not suitable for production — replace with proper auth.
+- The dashboard password is a simple client-side check for MVP. Not suitable for production — replace with proper auth.
 - The `NETLIFY_PAT` has broad access to your Netlify account. For production, scope it down or use a service-level token.
 - Student names are stored in Netlify Blobs with no encryption. For production, consider PII handling requirements.
 - CORS is set to `*` for all function endpoints. For production, restrict to your domain.
