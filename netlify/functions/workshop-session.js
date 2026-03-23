@@ -70,9 +70,18 @@ exports.handler = async (event) => {
       return json(400, { error: 'Invalid JSON in request body' });
     }
 
-    const { name, roomCount } = body;
+    const { name, roomCount, rounds, prompts } = body;
     if (!name || !roomCount || roomCount < 1) {
       return json(400, { error: 'Missing required fields: name, roomCount (>= 1)' });
+    }
+
+    const defaultPrompt = 'Tell your partner about a time you had to figure something out where there wasn\'t a clear answer. Any context \u2014 work, school, personal. Don\'t pick the most impressive story. Pick what comes to mind first. 3-4 minutes.';
+    const roundCount = Math.max(1, Math.min(10, rounds || 2));
+
+    // Build prompts array — one per round, falling back to default
+    const sessionPrompts = [];
+    for (let i = 0; i < roundCount; i++) {
+      sessionPrompts.push((prompts && prompts[i]) ? prompts[i] : defaultPrompt);
     }
 
     const sessionId = Math.random().toString(36).substring(2, 8);
@@ -81,6 +90,8 @@ exports.handler = async (event) => {
       name,
       created: new Date().toISOString(),
       roomCount,
+      rounds: roundCount,
+      prompts: sessionPrompts,
     };
 
     try {

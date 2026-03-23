@@ -206,6 +206,20 @@ body {
   background: #9b2c2c;
 }
 
+.ws-link-btn {
+  background: none;
+  border: none;
+  color: var(--ci-accent);
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+.ws-link-btn:hover {
+  color: #1a365d;
+}
+
 .ws-btn-row {
   display: flex;
   gap: 12px;
@@ -1082,6 +1096,102 @@ body {
   gap: 8px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+}
+
+/* ============================================
+   Real-time: Live indicator badge
+   ============================================ */
+
+.ws-live-indicator {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.ws-live-indicator--connected {
+  background: #f0fdf4;
+  color: var(--ws-green);
+  animation: ws-live-pulse 2s ease-in-out infinite;
+}
+
+.ws-live-indicator--disconnected {
+  background: var(--ci-error-bg);
+  color: var(--ws-red);
+}
+
+@keyframes ws-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ============================================
+   Real-time: Active typing indicator
+   ============================================ */
+
+.ws-room-card__active {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ws-green);
+  margin-left: 8px;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.ws-room-card__active--visible {
+  opacity: 1;
+  animation: ws-typing-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ws-typing-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* ============================================
+   Real-time: Card update flash
+   ============================================ */
+
+.ws-room-card--updated {
+  animation: ws-card-flash 1.5s ease-out;
+}
+
+@keyframes ws-card-flash {
+  0% { box-shadow: 0 0 0 3px rgba(44, 82, 130, 0.3); }
+  100% { box-shadow: none; }
+}
+
+/* ============================================
+   Real-time: Status change animation
+   ============================================ */
+
+.ws-room-card--status-change .ws-room-card__status {
+  animation: ws-status-pop 0.4s ease-out;
+}
+
+@keyframes ws-status-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* ============================================
+   Real-time: Data flash (word count, preview)
+   ============================================ */
+
+.ws-flash {
+  animation: ws-data-flash 0.8s ease-out;
+}
+
+@keyframes ws-data-flash {
+  0% { background-color: rgba(44, 82, 130, 0.12); }
+  100% { background-color: transparent; }
 }
 
 /* ============================================

@@ -61,7 +61,16 @@ exports.handler = async (event) => {
       round,
     };
 
-    room.submissions.push(submission);
+    // Upsert: replace existing submission with same studentName + round
+    // to avoid duplicates from auto-save and explicit submit
+    const existingIdx = room.submissions.findIndex(
+      s => s.studentName === studentName && s.round === round
+    );
+    if (existingIdx !== -1) {
+      room.submissions[existingIdx] = submission;
+    } else {
+      room.submissions.push(submission);
+    }
     room.lastInputTime = now;
     room.lastHeartbeat = now;
 

@@ -37,6 +37,11 @@ exports.handler = async (event) => {
   const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
 
   try {
+    // Fetch session to get custom prompts and round count
+    const session = await store.get(`session:${sessionId}`, { type: 'json' });
+    const rounds = session?.rounds || 2;
+    const prompts = session?.prompts || null;
+
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
     const rooms = [];
     for (const blob of blobs) {
@@ -44,7 +49,7 @@ exports.handler = async (event) => {
       if (data) rooms.push(data);
     }
 
-    return json(200, { rooms });
+    return json(200, { rooms, rounds, prompts });
   } catch (error) {
     console.error('List rooms error:', error);
     return json(500, { error: 'Failed to list rooms' });

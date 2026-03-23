@@ -1,0 +1,80 @@
+/**
+ * Workshop Pulse
+ *
+ * GET: Return lightweight summary of all rooms in a session.
+ * Designed for aggressive polling (every 2s) — returns only
+ * timestamps and counts, not full submission data.
+ */
+
+const { getStore } = require('@netlify/blobs');
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+};
+
+function json(statusCode, data) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    body: JSON.stringify(data),
+  };
+}
+
+exports.handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers: CORS_HEADERS, body: '' };
+  }
+
+  if (event.httpMethod !== 'GET') {
+    return json(405, { error: 'Method not allowed' });
+  }
+
+  const sessionId = event.queryStringParameters?.sessionId;
+  if (!sessionId) {
+    return json(400, { error: 'Missing required query parameter: sessionId' });
+  }
+
+  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+
+  try {
+    const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
+    const rooms = [];
+
+    for (const blob of blobs) {
+      const data = await store.get(blob.key, { type: 'json' });
+      if (!data) continue;
+
+      const students = data.students || {};
+      const studentNames = Object.values(students).filter(Boolean);
+      const submissions = data.submissions || [];
+      const totalWords = submissions.reduce((sum, s) => sum + (s.wordCount || 0), 0);
+      const latestSubmissionTime = submissions.length > 0
+        ? submissions[submissions.length - 1].timestamp
+        : null;
+
+      rooms.push({
+        id: data.id,
+        studentCount: studentNames.length,
+        studentNames,
+        submissionCount: submissions.length,
+        wordCount: totalWords,
+        lastInputTime: data.lastInputTime || null,
+        lastHeartbeat: data.lastHeartbeat || null,
+        latestSubmissionTime,
+        currentRound: data.currentRound || 1,
+        roundStartTime: data.roundStartTime || null,
+        hasClassification: (data.classifications || []).length > 0,
+        latestStatus: (data.classifications || []).length > 0
+          ? (data.classifications[data.classifications.length - 1].status || '').toLowerCase()
+          : '',
+      });
+    }
+
+    return json(200, { rooms, serverTime: new Date().toISOString() });
+  } catch (error) {
+    console.error('Pulse error:', error);
+    return json(500, { error: 'Failed to fetch pulse' });
+  }
+};

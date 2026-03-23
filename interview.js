@@ -22,6 +22,8 @@ const state = {
   role: null,       // 'interviewer' | 'storyteller'
   partnerName: '',
   customTags: [],
+  totalRounds: parseInt(localStorage.getItem('ws_totalRounds') || '2', 10),
+  prompts: JSON.parse(localStorage.getItem('ws_prompts') || '[]'),
 };
 
 /* ============================================
@@ -65,6 +67,15 @@ function persist() {
   localStorage.setItem('ws_studentName', state.studentName);
   localStorage.setItem('ws_round', String(state.round));
   localStorage.setItem('ws_phase', state.phase);
+  localStorage.setItem('ws_totalRounds', String(state.totalRounds));
+  if (state.prompts.length > 0) localStorage.setItem('ws_prompts', JSON.stringify(state.prompts));
+}
+
+function applyPrompt() {
+  const prompt = state.prompts[state.round - 1];
+  if (prompt) {
+    $('interview-prompt').textContent = prompt;
+  }
 }
 
 function showScreen(name) {
@@ -95,8 +106,8 @@ function hideError(el) {
 
 function determineRoles(students, round) {
   const sorted = [...students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-  const interviewerIdx = round === 1 ? 0 : 1;
-  const storytellerIdx = round === 1 ? 1 : 0;
+  const interviewerIdx = round % 2 === 1 ? 0 : 1;
+  const storytellerIdx = round % 2 === 1 ? 1 : 0;
   return {
     interviewer: sorted[interviewerIdx],
     storyteller: sorted[storytellerIdx],
@@ -194,8 +205,22 @@ function dismissNudge() {
    ============================================ */
 
 function initEntry() {
+  // Check for ?code= URL parameter to auto-fill session code (shareable join link)
+  const urlParams = new URLSearchParams(window.location.search);
+  const codeParam = urlParams.get('code');
+  if (codeParam) {
+    state.sessionId = codeParam;
+    // Clean the URL without reloading so the param doesn't persist on refresh
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
   if (state.sessionId) $('entry-session').value = state.sessionId;
   if (state.studentName) $('entry-name').value = state.studentName;
+
+  // If code came from URL and we already have a saved name, auto-submit
+  if (codeParam && state.studentName) {
+    handleFindRooms();
+  }
 
   $('btn-find-rooms').addEventListener('click', handleFindRooms);
 
@@ -231,6 +256,8 @@ async function handleFindRooms() {
 
     state.sessionId = sessionId;
     state.studentName = studentName;
+    if (data.rounds) state.totalRounds = data.rounds;
+    if (data.prompts) state.prompts = data.prompts;
     persist();
     renderRoomPicker(rooms);
     showScreen('rooms');
@@ -263,7 +290,7 @@ function renderRoomPicker(rooms) {
       <div class="ws-room-pick__number">Room ${room.id}</div>
       <div class="ws-room-pick__status">${statusText}</div>
       <div class="ws-room-pick__names">${names.length > 0 ? names.map(n => `<span>${escHtml(n)}</span>`).join('') : '<span style="color:var(--ci-text-muted)">No one yet</span>'}</div>
-      ${alreadyIn ? '<div class="ws-room-pick__badge">You are here</div>' : ''}
+      ${alreadyIn ? '<div class="ws-room-pick__badge">You are here — click to rejoin</div>' : ''}
     `;
 
     if (!isFull || alreadyIn) {
@@ -286,15 +313,38 @@ async function joinRoom(roomId) {
   hideError(errEl);
 
   try {
-    await api('workshop-join', {
+    const data = await api('workshop-join', {
       body: { sessionId: state.sessionId, roomId: String(roomId), studentName: state.studentName },
     });
     state.roomId = String(roomId);
+
+    // On rejoin, restore round from room state so we land in the right phase
+    const room = data.room || data;
+    if (data.rejoined) {
+      const currentRound = room.currentRound || 1;
+      if (currentRound > state.totalRounds) {
+        state.round = state.totalRounds;
+        persist();
+        startHeartbeat();
+        startNudgePolling();
+        showScreen('complete');
+        return;
+      }
+      state.round = currentRound;
+    }
+
     persist();
     startHeartbeat();
     startNudgePolling();
-    showScreen('waiting');
-    startWaitingPoll();
+
+    // Check if partner is already present to skip waiting screen
+    state.students = extractStudentNames(room.students);
+    if (state.students.length >= 2) {
+      startInterview();
+    } else {
+      showScreen('waiting');
+      startWaitingPoll();
+    }
   } catch (err) {
     showError(errEl, err.message);
   }
@@ -361,6 +411,7 @@ function startInterview() {
   state.partnerName = state.role === 'interviewer' ? roles.storyteller : roles.interviewer;
 
   renderInterviewHeader();
+  applyPrompt();
 
   if (state.role === 'interviewer') {
     $('interviewer-view').classList.remove('ws-hidden');
@@ -377,7 +428,7 @@ function startInterview() {
 
 function renderInterviewHeader() {
   const roles = determineRoles(state.students, state.round);
-  $('round-title').textContent = `Round ${state.round} of 2`;
+  $('round-title').textContent = `Round ${state.round} of ${state.totalRounds}`;
   $('round-roles').textContent = `${roles.interviewer} interviews ${roles.storyteller}`;
   $('round-badge').textContent = `Room ${state.roomId}`;
 }
@@ -408,6 +459,7 @@ function setupInterviewerPhases() {
   };
 
   $('btn-submit-notes').onclick = handleSubmitNotes;
+  $('btn-more-questions').onclick = handleMoreQuestions;
   $('btn-submit-followup').onclick = handleSubmitFollowup;
   $('btn-end-round').onclick = handleEndRound;
   $('btn-add-tag').onclick = handleAddTag;
@@ -459,6 +511,35 @@ async function handleSubmitNotes() {
   } finally {
     $('btn-submit-notes').disabled = false;
     $('btn-submit-notes').textContent = 'Submit Notes';
+  }
+}
+
+async function handleMoreQuestions() {
+  const notes = $('notes-textarea').value.trim();
+  const followupNotes = $('followup-textarea').value.trim();
+  // Combine original notes with any follow-up notes for better context
+  const combined = followupNotes ? `${notes}\n\nFollow-up notes:\n${followupNotes}` : notes;
+  if (!combined) return;
+
+  $('btn-more-questions').disabled = true;
+  $('btn-more-questions').textContent = 'Generating...';
+
+  try {
+    const followupData = await api('workshop-followup', {
+      body: {
+        sessionId: state.sessionId,
+        roomId: state.roomId,
+        notes: combined,
+        regenerate: true,
+      },
+    });
+
+    renderFollowupCards(followupData.questions || followupData.followups || []);
+  } catch (err) {
+    alert('Error generating questions: ' + err.message);
+  } finally {
+    $('btn-more-questions').disabled = false;
+    $('btn-more-questions').textContent = 'Generate More Questions';
   }
 }
 
@@ -562,8 +643,10 @@ function renderProfile(data) {
   $('profile-done').classList.remove('ws-hidden');
 
   $('btn-next-round').onclick = handleNextRound;
-  if (state.round >= 2) {
+  if (state.round >= state.totalRounds) {
     $('btn-next-round').textContent = 'Finish Workshop';
+  } else {
+    $('btn-next-round').textContent = `Continue to Round ${state.round + 1}`;
   }
 }
 
@@ -581,11 +664,11 @@ function handleAddTag() {
 }
 
 function handleNextRound() {
-  if (state.round >= 2) {
+  if (state.round >= state.totalRounds) {
     showScreen('complete');
     return;
   }
-  state.round = 2;
+  state.round = state.round + 1;
   persist();
   startInterview();
 }
@@ -671,12 +754,56 @@ function tryResume() {
     return;
   }
 
+  if (state.phase === 'rooms') {
+    // Re-fetch rooms and show picker
+    api('workshop-rooms', { params: { sessionId: state.sessionId } })
+      .then((data) => {
+        renderRoomPicker(data.rooms || []);
+        showScreen('rooms');
+      })
+      .catch(() => showScreen('entry'));
+    return;
+  }
+
   showScreen('entry');
 }
 
 /* ============================================
    Init
    ============================================ */
+
+async function changeRoom() {
+  // Stop polling intervals for the current room
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  if (nudgeInterval) { clearInterval(nudgeInterval); nudgeInterval = null; }
+  if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; }
+
+  // Remove student from current room on the backend
+  try {
+    await api('workshop-leave', {
+      body: { sessionId: state.sessionId, roomId: state.roomId, studentName: state.studentName },
+    });
+  } catch { /* proceed even if this fails */ }
+
+  // Clear room-specific state but keep session & name
+  state.roomId = '';
+  state.round = 1;
+  state.students = [];
+  state.role = null;
+  state.partnerName = '';
+  persist();
+
+  // Fetch rooms and show picker
+  try {
+    const data = await api('workshop-rooms', { params: { sessionId: state.sessionId } });
+    const rooms = data.rooms || [];
+    renderRoomPicker(rooms);
+    showScreen('rooms');
+  } catch {
+    // If rooms fetch fails, fall back to entry
+    showScreen('entry');
+  }
+}
 
 function leaveSession() {
   // Stop all intervals
@@ -697,9 +824,10 @@ function leaveSession() {
   state.role = null;
   state.partnerName = '';
   state.customTags = [];
+  state.prompt = '';
 
   // Clear localStorage
-  ['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase'].forEach(k => localStorage.removeItem(k));
+  ['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_prompt'].forEach(k => localStorage.removeItem(k));
 
   // Reset form inputs
   $('entry-session').value = '';
@@ -710,12 +838,56 @@ function leaveSession() {
   showScreen('entry');
 }
 
+function switchSession() {
+  // Leave current room on the backend (best-effort)
+  if (state.sessionId && state.roomId) {
+    api('workshop-leave', {
+      body: { sessionId: state.sessionId, roomId: state.roomId, studentName: state.studentName },
+    }).catch(() => {});
+  }
+
+  // Stop all intervals
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  if (nudgeInterval) { clearInterval(nudgeInterval); nudgeInterval = null; }
+  if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; }
+  if (storytellerPollInterval) { clearInterval(storytellerPollInterval); storytellerPollInterval = null; }
+  Object.values(debounceTimers).forEach(clearTimeout);
+  debounceTimers = {};
+
+  // Keep studentName but clear session-specific state
+  const savedName = state.studentName;
+  state.sessionId = '';
+  state.roomId = '';
+  state.round = 1;
+  state.phase = 'entry';
+  state.students = [];
+  state.role = null;
+  state.partnerName = '';
+  state.customTags = [];
+  state.prompt = '';
+
+  ['ws_sessionId', 'ws_roomId', 'ws_round', 'ws_phase', 'ws_prompt'].forEach(k => localStorage.removeItem(k));
+
+  // Pre-fill name so they only need to enter a new session code
+  state.studentName = savedName;
+  localStorage.setItem('ws_studentName', savedName);
+  $('entry-session').value = '';
+  $('entry-name').value = savedName;
+
+  showScreen('entry');
+}
+
 function init() {
   initEntry();
 
   $('nudge-dismiss').addEventListener('click', dismissNudge);
   $('btn-leave-session').addEventListener('click', leaveSession);
   $('btn-leave-complete').addEventListener('click', leaveSession);
+  $('btn-change-room').addEventListener('click', changeRoom);
+  $('btn-change-room-interview').addEventListener('click', changeRoom);
+  $('btn-change-room-complete').addEventListener('click', changeRoom);
+  $('btn-switch-session').addEventListener('click', switchSession);
+  $('btn-switch-session-complete').addEventListener('click', switchSession);
 
   tryResume();
 }

@@ -54,6 +54,9 @@
         <p id="rooms-subtitle">Select an available room to join.</p>
         <div id="rooms-grid" class="ws-rooms-picker"></div>
         <div id="rooms-error" class="ws-error ws-hidden"></div>
+        <div class="ws-btn-row" style="justify-content:center;margin-top:20px;">
+          <button id="btn-switch-session" class="ws-btn ws-btn--secondary ws-btn--small">Join a Different Session</button>
+        </div>
       </div>
     </div>
 
@@ -68,6 +71,9 @@
           </div>
           <p id="waiting-message">Waiting for your partner to join...</p>
           <div id="waiting-names" class="ws-partner-names ws-hidden"></div>
+          <div class="ws-btn-row" style="justify-content:center;margin-top:20px;">
+            <button id="btn-change-room" class="ws-btn ws-btn--secondary ws-btn--small">Change Room</button>
+          </div>
         </div>
       </div>
     </div>
@@ -83,7 +89,7 @@
       </div>
 
       <div class="ws-prompt-card">
-        <p>Tell your partner about a time you had to figure something out where there wasn't a clear answer. Any context — work, school, personal. Don't pick the most impressive story. Pick what comes to mind first. 3-4 minutes.</p>
+        <p id="interview-prompt">Tell your partner about a time you had to figure something out where there wasn't a clear answer. Any context — work, school, personal. Don't pick the most impressive story. Pick what comes to mind first. 3-4 minutes.</p>
       </div>
 
       <!-- Interviewer view -->
@@ -106,6 +112,9 @@
         <div id="phase-followup" class="ws-hidden">
           <h3 style="margin:0 0 8px;font-size:17px;color:var(--ci-accent);">Follow-up questions to dig deeper</h3>
           <div id="followup-cards" class="ws-followup-cards"></div>
+          <div class="ws-btn-row" style="margin-top:10px;">
+            <button id="btn-more-questions" class="ws-btn ws-btn--secondary ws-btn--small">Generate More Questions</button>
+          </div>
           <div class="ws-field" style="margin-top:16px;">
             <label class="ws-label" for="followup-textarea">Follow-up notes</label>
             <textarea id="followup-textarea" class="ws-textarea" placeholder="Capture their answers to the follow-up questions..."></textarea>
@@ -150,6 +159,10 @@
           <p>Share your story with your partner. They are taking notes.<br>Take your time — 3-4 minutes is the goal.</p>
         </div>
       </div>
+
+      <div class="ws-btn-row" style="justify-content:center;margin-top:24px;">
+        <button id="btn-change-room-interview" class="ws-btn ws-btn--secondary ws-btn--small">Change Room</button>
+      </div>
     </div>
 
     <!-- Screen 4: Complete -->
@@ -158,6 +171,8 @@
         <h2>Both rounds complete!</h2>
         <p>Great work. Your facilitator will share next steps.</p>
         <div class="ws-btn-row" style="justify-content:center;margin-top:16px;">
+          <button id="btn-change-room-complete" class="ws-btn ws-btn--secondary ws-btn--small">Back to Rooms</button>
+          <button id="btn-switch-session-complete" class="ws-btn ws-btn--secondary ws-btn--small">Join a Different Session</button>
           <button id="btn-leave-complete" class="ws-btn ws-btn--secondary ws-btn--small">Leave Session</button>
         </div>
       </div>

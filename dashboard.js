@@ -1,8 +1,12 @@
 /**
  * Workshop MVP — Facilitator Dashboard
  *
- * Login, session creation/monitoring, room cards grid,
- * overview bar, nudge modal, auto-refresh with classification.
+ * Real-time monitoring with lightweight pulse polling (2s),
+ * selective room fetching, DOM diffing, and live activity indicators.
+ *
+ * Inspired by Pear Deck's approach: frequent lightweight checks,
+ * full data only when something changes, visual feedback that
+ * makes updates feel instantaneous.
  */
 
 import { WORKSHOP_CONFIG as CFG } from './config.js';
@@ -14,11 +18,17 @@ import { WORKSHOP_CONFIG as CFG } from './config.js';
 const state = {
   authenticated: false,
   sessionId: '',
-  rooms: [],
-  lastClassifyTimestamps: {},   // roomId -> ISO string of last classified submission
-  refreshInterval: null,
+  rooms: [],                        // Full room data (fetched selectively)
+  roomIndex: {},                     // roomId -> index in rooms[]
+  lastPulse: {},                     // roomId -> last pulse snapshot
+  lastClassifyTimestamps: {},        // roomId -> ISO string
+  dirtyRooms: new Set(),             // rooms that changed since last full fetch
+  pulseInterval: null,
+  fullRefreshInterval: null,
+  classifyInterval: null,
   inactivityInterval: null,
   nudgeTargetRoomId: null,
+  lastFullRefresh: 0,
 };
 
 /* ============================================
@@ -52,6 +62,35 @@ function hideError(el) {
   el.classList.add('ws-hidden');
 }
 
+function showSessionSubtitle(sessionId) {
+  const el = $('dash-subtitle');
+  el.innerHTML = '';
+  el.appendChild(document.createTextNode(`Session: ${sessionId} — `));
+  const btn = document.createElement('button');
+  btn.className = 'ws-link-btn';
+  btn.textContent = 'Copy Join Link';
+  btn.addEventListener('click', () => copyJoinLink(sessionId, btn));
+  el.appendChild(btn);
+}
+
+/* ============================================
+   Join-link helper
+   ============================================ */
+
+function getJoinLink(sessionId) {
+  const base = window.location.origin;
+  return `${base}/interview.html?code=${encodeURIComponent(sessionId)}`;
+}
+
+function copyJoinLink(sessionId, btnEl) {
+  const link = getJoinLink(sessionId);
+  navigator.clipboard.writeText(link).then(() => {
+    const orig = btnEl.textContent;
+    btnEl.textContent = 'Copied!';
+    setTimeout(() => { btnEl.textContent = orig; }, 1500);
+  });
+}
+
 /* ============================================
    API helper
    ============================================ */
@@ -82,7 +121,7 @@ function relativeTime(isoOrMs) {
   const then = typeof isoOrMs === 'number' ? isoOrMs : new Date(isoOrMs).getTime();
   const diff = Math.max(0, Date.now() - then);
   const secs = Math.floor(diff / 1000);
-  if (secs < 10) return 'just now';
+  if (secs < 5) return 'just now';
   if (secs < 60) return `${secs}s ago`;
   const mins = Math.floor(secs / 60);
   if (mins < 60) return `${mins}m ago`;
@@ -126,28 +165,65 @@ function handleLogin() {
    Session management
    ============================================ */
 
+const DEFAULT_PROMPT = 'Tell your partner about a time you had to figure something out where there wasn\'t a clear answer. Any context \u2014 work, school, personal. Don\'t pick the most impressive story. Pick what comes to mind first. 3-4 minutes.';
+
 function initSession() {
   $('btn-create-session').addEventListener('click', handleCreateSession);
+  $('new-round-count').addEventListener('change', renderRoundPromptFields);
+  $('new-round-count').addEventListener('input', renderRoundPromptFields);
+  renderRoundPromptFields();
+}
+
+function renderRoundPromptFields() {
+  const count = Math.max(1, Math.min(10, parseInt($('new-round-count').value, 10) || 2));
+  const container = $('round-prompts-container');
+
+  // Preserve existing values
+  const existing = {};
+  container.querySelectorAll('textarea').forEach((ta) => {
+    existing[ta.dataset.round] = ta.value;
+  });
+
+  container.innerHTML = '';
+  for (let i = 1; i <= count; i++) {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'margin-bottom:12px;';
+    wrapper.innerHTML = `
+      <label class="ws-label" style="font-size:13px;margin-bottom:4px;">Round ${i}</label>
+      <textarea class="ws-textarea" data-round="${i}" style="min-height:60px;" placeholder="Leave blank to use the default prompt">${existing[String(i)] !== undefined ? escHtml(existing[String(i)]) : escHtml(DEFAULT_PROMPT)}</textarea>
+    `;
+    container.appendChild(wrapper);
+  }
 }
 
 async function handleCreateSession() {
   const name = $('new-session-name').value.trim();
   const roomCount = parseInt($('new-room-count').value, 10);
+  const roundCount = Math.max(1, Math.min(10, parseInt($('new-round-count').value, 10) || 2));
   const errEl = $('create-error');
   hideError(errEl);
 
   if (!name) return showError(errEl, 'Please enter a session name.');
   if (!roomCount || roomCount < 1) return showError(errEl, 'Please enter a valid room count.');
 
+  // Collect per-round prompts
+  const prompts = [];
+  const container = $('round-prompts-container');
+  for (let i = 1; i <= roundCount; i++) {
+    const ta = container.querySelector(`textarea[data-round="${i}"]`);
+    const val = ta ? ta.value.trim() : '';
+    prompts.push(val || DEFAULT_PROMPT);
+  }
+
   $('btn-create-session').disabled = true;
   $('btn-create-session').textContent = 'Creating...';
 
   try {
     const data = await api('workshop-session', {
-      body: { name, roomCount },
+      body: { name, roomCount, rounds: roundCount, prompts },
     });
     state.sessionId = data.session?.id || data.sessionId || data.id;
-    $('dash-subtitle').textContent = `Session: ${state.sessionId} — Share this code with students`;
+    showSessionSubtitle(state.sessionId);
     startMonitoring();
   } catch (err) {
     showError(errEl, err.message);
@@ -208,6 +284,7 @@ function buildSessionCard(s, isEnded) {
     </div>
     <div class="ws-session-card__actions">
       ${isEnded ? '' : `<button class="ws-btn ws-btn--small" data-monitor-id="${escAttr(s.id)}">Monitor</button>`}
+      ${isEnded ? '' : `<button class="ws-btn ws-btn--small ws-btn--secondary" data-copy-link-id="${escAttr(s.id)}">Copy Join Link</button>`}
       <button class="ws-btn ws-btn--small ws-btn--secondary" data-download-id="${escAttr(s.id)}">Download JSON</button>
       ${isEnded ? '' : `<button class="ws-btn ws-btn--small ws-btn--danger" data-end-id="${escAttr(s.id)}">End Session</button>`}
     </div>
@@ -217,9 +294,13 @@ function buildSessionCard(s, isEnded) {
   if (monitorBtn) {
     monitorBtn.addEventListener('click', () => {
       state.sessionId = s.id;
-      $('dash-subtitle').textContent = `Session: ${s.id} - ${escHtml(s.name)}`;
+      showSessionSubtitle(s.id);
       startMonitoring();
     });
+  }
+  const copyLinkBtn = card.querySelector('[data-copy-link-id]');
+  if (copyLinkBtn) {
+    copyLinkBtn.addEventListener('click', () => copyJoinLink(s.id, copyLinkBtn));
   }
   card.querySelector('[data-download-id]').addEventListener('click', () => downloadSessionJSON(s.id, s.name));
   const endBtn = card.querySelector('[data-end-id]');
@@ -275,16 +356,326 @@ async function endSession(sessionId, sessionName) {
 }
 
 /* ============================================
-   Monitoring loop
+   Real-time monitoring loop
    ============================================ */
 
 function startMonitoring() {
   sessionStorage.setItem('ws_dash_sessionId', state.sessionId);
   showScreen('dashboard');
-  refreshRooms();
-  state.refreshInterval = setInterval(refreshRooms, CFG.dashboard_refresh_interval);
+
+  // Initial full fetch to populate everything
+  fullRefreshRooms();
+
+  // Lightweight pulse every 2s — detects changes fast
+  state.pulseInterval = setInterval(pollPulse, CFG.pulse_interval);
+
+  // Full refresh fallback every 15s — catches anything pulse missed
+  state.fullRefreshInterval = setInterval(fullRefreshRooms, CFG.full_refresh_interval);
+
+  // Batch AI classification every 12s
+  state.classifyInterval = setInterval(classifyDirtyRooms, CFG.classify_interval);
+
+  // Inactivity check every 30s
   state.inactivityInterval = setInterval(checkInactivity, CFG.inactivity_check_interval);
+
+  // Update relative times every second (elapsed timers, "Xs ago" labels)
+  state.tickInterval = setInterval(tickTimers, 1000);
 }
+
+function stopMonitoring() {
+  [state.pulseInterval, state.fullRefreshInterval, state.classifyInterval,
+   state.inactivityInterval, state.tickInterval].forEach(id => {
+    if (id) clearInterval(id);
+  });
+  state.pulseInterval = null;
+  state.fullRefreshInterval = null;
+  state.classifyInterval = null;
+  state.inactivityInterval = null;
+  state.tickInterval = null;
+}
+
+/* ============================================
+   Pulse polling — lightweight change detection
+   ============================================ */
+
+async function pollPulse() {
+  try {
+    const data = await api('workshop-pulse', {
+      params: { sessionId: state.sessionId },
+    });
+    const pulseRooms = data.rooms || [];
+    const changedRoomIds = [];
+
+    for (const p of pulseRooms) {
+      const prev = state.lastPulse[p.id];
+      const changed = !prev
+        || prev.lastInputTime !== p.lastInputTime
+        || prev.submissionCount !== p.submissionCount
+        || prev.studentCount !== p.studentCount
+        || prev.wordCount !== p.wordCount
+        || prev.currentRound !== p.currentRound;
+
+      if (changed) {
+        changedRoomIds.push(p.id);
+        state.dirtyRooms.add(p.id);
+      }
+
+      // Update pulse snapshot
+      state.lastPulse[p.id] = p;
+    }
+
+    // Update live activity indicators from pulse data (no full fetch needed)
+    updateFromPulse(pulseRooms);
+
+    // Fetch full data only for rooms that actually changed
+    if (changedRoomIds.length > 0) {
+      await fetchChangedRooms(changedRoomIds);
+    }
+
+    // Update the live indicator
+    updateLiveIndicator(true);
+  } catch {
+    updateLiveIndicator(false);
+  }
+}
+
+/**
+ * Update room cards with lightweight pulse data —
+ * word counts, timestamps, student names — without waiting for full fetch.
+ */
+function updateFromPulse(pulseRooms) {
+  for (const p of pulseRooms) {
+    const card = document.querySelector(`[data-room-id="${p.id}"]`);
+    if (!card) continue;
+
+    // Update word count
+    const wordEl = card.querySelector('[data-field="wordCount"]');
+    if (wordEl) {
+      const newText = `${p.wordCount} words`;
+      if (wordEl.textContent !== newText) {
+        wordEl.textContent = newText;
+        flashElement(wordEl);
+      }
+    }
+
+    // Update last input time
+    const timeEl = card.querySelector('[data-field="lastInput"]');
+    if (timeEl) {
+      timeEl.textContent = relativeTime(p.lastInputTime);
+      timeEl.dataset.ts = p.lastInputTime || '';
+    }
+
+    // Update elapsed timer
+    const elapsedEl = card.querySelector('[data-field="elapsed"]');
+    if (elapsedEl && p.roundStartTime) {
+      elapsedEl.textContent = `${elapsedSince(p.roundStartTime)} elapsed`;
+      elapsedEl.dataset.ts = p.roundStartTime;
+    }
+
+    // Show typing/active indicator if input was very recent
+    const activeIndicator = card.querySelector('.ws-room-card__active');
+    if (activeIndicator && p.lastInputTime) {
+      const secsSinceInput = (Date.now() - new Date(p.lastInputTime).getTime()) / 1000;
+      if (secsSinceInput < 8) {
+        activeIndicator.classList.add('ws-room-card__active--visible');
+      } else {
+        activeIndicator.classList.remove('ws-room-card__active--visible');
+      }
+    }
+
+    // Update student names if they changed (new join)
+    const studentsEl = card.querySelector('.ws-room-card__students');
+    if (studentsEl && p.studentCount !== (parseInt(card.dataset.studentCount, 10) || 0)) {
+      card.dataset.studentCount = p.studentCount;
+      if (p.studentCount > 0 && p.studentNames) {
+        const idx = state.rooms.findIndex(r => String(r.id) === String(p.id));
+        if (idx >= 0) {
+          state.rooms[idx]._studentNames = p.studentNames;
+          updateStudentsDisplay(studentsEl, state.rooms[idx]);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Fetch full room data only for specific changed rooms.
+ */
+async function fetchChangedRooms(roomIds) {
+  const fetches = roomIds.map(async (roomId) => {
+    try {
+      const data = await api('workshop-room', {
+        params: { sessionId: state.sessionId, roomId },
+      });
+      const room = data.room || data;
+      enrichRoom(room);
+
+      // Upsert into state.rooms
+      const idx = state.rooms.findIndex(r => String(r.id) === String(roomId));
+      if (idx >= 0) {
+        state.rooms[idx] = room;
+      } else {
+        state.rooms.push(room);
+      }
+
+      // Update just this card in the DOM
+      updateRoomCard(room);
+    } catch { /* silent */ }
+  });
+
+  await Promise.all(fetches);
+  renderOverview();
+}
+
+/* ============================================
+   Full refresh — fallback / initial load
+   ============================================ */
+
+async function fullRefreshRooms() {
+  try {
+    const data = await api('workshop-rooms', {
+      params: { sessionId: state.sessionId },
+    });
+    const rooms = data.rooms || data || [];
+    state.rooms = Array.isArray(rooms) ? rooms : [];
+
+    state.rooms.forEach(enrichRoom);
+
+    // Seed pulse cache
+    state.rooms.forEach((room) => {
+      state.lastPulse[room.id] = {
+        id: room.id,
+        studentCount: (room._studentNames || []).length,
+        submissionCount: (room.submissions || []).length,
+        wordCount: room._wordCount || 0,
+        lastInputTime: room.lastInputTime || null,
+        lastHeartbeat: room.lastHeartbeat || null,
+        currentRound: room.currentRound || 1,
+        roundStartTime: room.roundStartTime || null,
+      };
+    });
+
+    state.lastFullRefresh = Date.now();
+    renderOverview();
+    renderRoomGrid();
+  } catch { /* silent */ }
+}
+
+function enrichRoom(room) {
+  const cls = getRoomStatus(room);
+  room._status = cls.status;
+  room._reasoning = cls.reasoning;
+  room._suggestedNudge = cls.suggestedNudge;
+  room._wordCount = getRoomWordCount(room);
+  room._latestNotes = getLatestNotes(room);
+  room._lastInputTime = getLastInputTime(room);
+  room._studentNames = extractStudentNames(room.students);
+}
+
+/* ============================================
+   Classification — batched for efficiency
+   ============================================ */
+
+async function classifyDirtyRooms() {
+  const roomsToClassify = state.rooms.filter((room) => {
+    if (!state.dirtyRooms.has(room.id)) return false;
+    if (!room.submissions || room.submissions.length === 0) return false;
+    const lastSubmission = room.lastInputTime;
+    const lastClassified = state.lastClassifyTimestamps[room.id];
+    return lastSubmission && lastSubmission !== lastClassified;
+  });
+
+  // Clear dirty set
+  state.dirtyRooms.clear();
+
+  for (const room of roomsToClassify) {
+    try {
+      const result = await api('workshop-classify', {
+        body: { sessionId: state.sessionId, roomId: room.id },
+      });
+      const cls = result.classification || result;
+      const newStatus = (cls.status || '').toLowerCase();
+      const oldStatus = room._status;
+
+      room._status = newStatus;
+      room._reasoning = cls.reasoning || '';
+      room._suggestedNudge = cls.suggestedNudge || null;
+      state.lastClassifyTimestamps[room.id] = room.lastInputTime;
+
+      // Update card with new status (with transition animation)
+      const card = document.querySelector(`[data-room-id="${room.id}"]`);
+      if (card && newStatus !== oldStatus) {
+        updateStatusBadge(card, room);
+        card.classList.add('ws-room-card--status-change');
+        setTimeout(() => card.classList.remove('ws-room-card--status-change'), 1500);
+      }
+    } catch { /* silent */ }
+  }
+
+  renderOverview();
+}
+
+async function checkInactivity() {
+  try {
+    await api('workshop-classify-inactive', {
+      params: { sessionId: state.sessionId },
+    });
+  } catch { /* silent */ }
+}
+
+/* ============================================
+   Timer ticks — update relative times every second
+   ============================================ */
+
+function tickTimers() {
+  // Update all "Xs ago" labels
+  document.querySelectorAll('[data-field="lastInput"]').forEach((el) => {
+    const ts = el.dataset.ts;
+    if (ts) el.textContent = relativeTime(ts);
+  });
+
+  // Update all elapsed timers
+  document.querySelectorAll('[data-field="elapsed"]').forEach((el) => {
+    const ts = el.dataset.ts;
+    if (ts) el.textContent = `${elapsedSince(ts)} elapsed`;
+  });
+
+  // Update active/typing indicators
+  document.querySelectorAll('.ws-room-card__active').forEach((el) => {
+    const card = el.closest('[data-room-id]');
+    if (!card) return;
+    const roomId = card.dataset.roomId;
+    const pulse = state.lastPulse[roomId];
+    if (pulse && pulse.lastInputTime) {
+      const secs = (Date.now() - new Date(pulse.lastInputTime).getTime()) / 1000;
+      if (secs < 8) {
+        el.classList.add('ws-room-card__active--visible');
+      } else {
+        el.classList.remove('ws-room-card__active--visible');
+      }
+    }
+  });
+}
+
+/* ============================================
+   Live indicator
+   ============================================ */
+
+function updateLiveIndicator(connected) {
+  const el = $('live-indicator');
+  if (!el) return;
+  if (connected) {
+    el.className = 'ws-live-indicator ws-live-indicator--connected';
+    el.textContent = 'LIVE';
+  } else {
+    el.className = 'ws-live-indicator ws-live-indicator--disconnected';
+    el.textContent = 'RECONNECTING';
+  }
+}
+
+/* ============================================
+   Room data helpers
+   ============================================ */
 
 function extractStudentNames(studentsObj) {
   if (!studentsObj) return [];
@@ -315,64 +706,6 @@ function getLatestNotes(room) {
 
 function getLastInputTime(room) {
   return room.lastInputTime || null;
-}
-
-async function refreshRooms() {
-  try {
-    const data = await api('workshop-rooms', {
-      params: { sessionId: state.sessionId },
-    });
-    const rooms = data.rooms || data || [];
-    state.rooms = Array.isArray(rooms) ? rooms : [];
-
-    // Enrich rooms with computed fields
-    state.rooms.forEach((room) => {
-      const cls = getRoomStatus(room);
-      room._status = cls.status;
-      room._reasoning = cls.reasoning;
-      room._suggestedNudge = cls.suggestedNudge;
-      room._wordCount = getRoomWordCount(room);
-      room._latestNotes = getLatestNotes(room);
-      room._lastInputTime = getLastInputTime(room);
-      room._studentNames = extractStudentNames(room.students);
-    });
-
-    // Classify rooms that have new submissions
-    await classifyNewSubmissions();
-
-    renderOverview();
-    renderRoomGrid();
-  } catch { /* silent */ }
-}
-
-async function classifyNewSubmissions() {
-  for (const room of state.rooms) {
-    const roomId = room.id;
-    const lastSubmission = room.lastInputTime;
-    const lastClassified = state.lastClassifyTimestamps[roomId];
-
-    // Only classify if there are submissions and they're newer than last classify
-    if (lastSubmission && lastSubmission !== lastClassified && room.submissions && room.submissions.length > 0) {
-      try {
-        const result = await api('workshop-classify', {
-          body: { sessionId: state.sessionId, roomId },
-        });
-        const cls = result.classification || result;
-        room._status = (cls.status || '').toLowerCase();
-        room._reasoning = cls.reasoning || '';
-        room._suggestedNudge = cls.suggestedNudge || null;
-        state.lastClassifyTimestamps[roomId] = lastSubmission;
-      } catch { /* silent */ }
-    }
-  }
-}
-
-async function checkInactivity() {
-  try {
-    await api('workshop-classify-inactive', {
-      params: { sessionId: state.sessionId },
-    });
-  } catch { /* silent */ }
 }
 
 /* ============================================
@@ -413,7 +746,7 @@ function renderOverview() {
 }
 
 /* ============================================
-   Room cards
+   Room cards — DOM diffing
    ============================================ */
 
 function sortRooms(rooms) {
@@ -426,14 +759,163 @@ function sortRooms(rooms) {
   });
 }
 
+/**
+ * Full grid render — used on initial load and full refresh.
+ * Creates cards with data-room-id for subsequent in-place updates.
+ */
 function renderRoomGrid() {
   const grid = $('room-grid');
   grid.innerHTML = '';
   const sorted = sortRooms(state.rooms);
-
   sorted.forEach((room) => {
     grid.appendChild(createRoomCard(room));
   });
+}
+
+/**
+ * Update a single room card in-place (DOM diffing).
+ * Falls back to replace if card doesn't exist.
+ */
+function updateRoomCard(room) {
+  const existing = document.querySelector(`[data-room-id="${room.id}"]`);
+  if (!existing) {
+    // Card doesn't exist yet — append it
+    const grid = $('room-grid');
+    if (grid) {
+      grid.appendChild(createRoomCard(room));
+    }
+    return;
+  }
+
+  // Update fields in-place
+  updateStatusBadge(existing, room);
+  updateStudentsDisplay(existing.querySelector('.ws-room-card__students'), room);
+
+  // Meta fields
+  const roundEl = existing.querySelector('[data-field="round"]');
+  if (roundEl) roundEl.textContent = `Round ${room.currentRound || 1}`;
+
+  const wordEl = existing.querySelector('[data-field="wordCount"]');
+  if (wordEl) {
+    const newWc = `${room._wordCount || 0} words`;
+    if (wordEl.textContent !== newWc) {
+      wordEl.textContent = newWc;
+      flashElement(wordEl);
+    }
+  }
+
+  const timeEl = existing.querySelector('[data-field="lastInput"]');
+  if (timeEl) {
+    timeEl.textContent = relativeTime(room._lastInputTime);
+    timeEl.dataset.ts = room._lastInputTime || '';
+  }
+
+  const elapsedEl = existing.querySelector('[data-field="elapsed"]');
+  if (elapsedEl) {
+    if (room.roundStartTime) {
+      elapsedEl.textContent = `${elapsedSince(room.roundStartTime)} elapsed`;
+      elapsedEl.dataset.ts = room.roundStartTime;
+    }
+  }
+
+  // Preview
+  const previewEl = existing.querySelector('.ws-room-card__preview');
+  const preview = room._latestNotes || '';
+  if (previewEl) {
+    const oldPreview = previewEl.dataset.full || '';
+    if (preview !== oldPreview) {
+      previewEl.dataset.full = preview;
+      if (previewEl.classList.contains('ws-room-card__preview--collapsed')) {
+        previewEl.textContent = preview.slice(0, 150) + (preview.length > 150 ? '...' : '');
+      } else {
+        previewEl.textContent = preview;
+      }
+      flashElement(previewEl);
+    }
+  } else if (preview) {
+    const actionsEl = existing.querySelector('.ws-room-card__actions');
+    if (actionsEl) {
+      const newPreview = document.createElement('div');
+      newPreview.className = 'ws-room-card__preview ws-room-card__preview--collapsed';
+      newPreview.dataset.full = preview;
+      newPreview.textContent = preview.slice(0, 150) + (preview.length > 150 ? '...' : '');
+      newPreview.addEventListener('click', togglePreview);
+      actionsEl.parentNode.insertBefore(newPreview, actionsEl);
+      flashElement(newPreview);
+    }
+  }
+
+  // Reasoning
+  const reasoningEl = existing.querySelector('.ws-room-card__reasoning');
+  if (reasoningEl && room._reasoning) {
+    reasoningEl.textContent = room._reasoning;
+  } else if (!reasoningEl && room._reasoning) {
+    const actionsEl = existing.querySelector('.ws-room-card__actions');
+    if (actionsEl) {
+      const newReasoning = document.createElement('div');
+      newReasoning.className = 'ws-room-card__reasoning';
+      newReasoning.textContent = room._reasoning;
+      actionsEl.parentNode.insertBefore(newReasoning, actionsEl);
+    }
+  }
+
+  // Flash the card to indicate update
+  existing.classList.add('ws-room-card--updated');
+  setTimeout(() => existing.classList.remove('ws-room-card--updated'), 1500);
+}
+
+function updateStatusBadge(card, room) {
+  const statusEl = card.querySelector('.ws-room-card__status');
+  if (!statusEl) return;
+
+  const status = room._status || '';
+  const statusLabel = status || 'pending';
+  const statusClass = status === 'red' ? '--red' : status === 'yellow' ? '--yellow' : status === 'green' ? '--green' : '--grey';
+
+  statusEl.className = `ws-room-card__status ws-room-card__status${statusClass}`;
+  statusEl.innerHTML = `<span class="ws-room-card__status-dot"></span>${statusLabel}`;
+}
+
+function updateStudentsDisplay(el, room) {
+  if (!el) return;
+  const studentNames = room._studentNames || [];
+  const round = room.currentRound || 1;
+
+  let interviewerName = '';
+  let storytellerName = '';
+  if (studentNames.length >= 2) {
+    const sortedNames = [...studentNames].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    const r = typeof round === 'number' ? round : 1;
+    interviewerName = r % 2 === 1 ? sortedNames[0] : sortedNames[1];
+    storytellerName = r % 2 === 1 ? sortedNames[1] : sortedNames[0];
+  }
+
+  if (studentNames.length === 0) {
+    el.innerHTML = '<em style="color:var(--ci-text-muted);">No students yet</em>';
+  } else if (interviewerName) {
+    el.innerHTML = `<strong>${escHtml(interviewerName)}</strong> interviewing <strong>${escHtml(storytellerName)}</strong>`;
+  } else {
+    el.innerHTML = studentNames.map((n) => `<strong>${escHtml(n)}</strong>`).join(', ');
+  }
+}
+
+function togglePreview(e) {
+  const previewEl = e.currentTarget;
+  if (previewEl.classList.contains('ws-room-card__preview--collapsed')) {
+    previewEl.classList.remove('ws-room-card__preview--collapsed');
+    previewEl.classList.add('ws-room-card__preview--expanded');
+    previewEl.textContent = previewEl.dataset.full;
+  } else {
+    previewEl.classList.remove('ws-room-card__preview--expanded');
+    previewEl.classList.add('ws-room-card__preview--collapsed');
+    const full = previewEl.dataset.full;
+    previewEl.textContent = full.slice(0, 150) + (full.length > 150 ? '...' : '');
+  }
+}
+
+function flashElement(el) {
+  el.classList.add('ws-flash');
+  setTimeout(() => el.classList.remove('ws-flash'), 800);
 }
 
 function createRoomCard(room) {
@@ -448,24 +930,28 @@ function createRoomCard(room) {
   const reasoning = room._reasoning || '';
   const roundStartedAt = room.roundStartTime;
 
-  // Determine who is interviewing
   let interviewerName = '';
   let storytellerName = '';
   if (studentNames.length >= 2) {
     const sortedNames = [...studentNames].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     const r = typeof round === 'number' ? round : 1;
-    interviewerName = r === 1 ? sortedNames[0] : sortedNames[1];
-    storytellerName = r === 1 ? sortedNames[1] : sortedNames[0];
+    interviewerName = r % 2 === 1 ? sortedNames[0] : sortedNames[1];
+    storytellerName = r % 2 === 1 ? sortedNames[1] : sortedNames[0];
   }
 
   const card = document.createElement('div');
   card.className = 'ws-room-card';
+  card.dataset.roomId = roomId;
+  card.dataset.studentCount = studentNames.length;
 
   const statusClass = status === 'red' ? '--red' : status === 'yellow' ? '--yellow' : status === 'green' ? '--green' : '--grey';
 
   card.innerHTML = `
     <div class="ws-room-card__top">
-      <div class="ws-room-card__id">Room ${roomId}</div>
+      <div class="ws-room-card__id">
+        Room ${roomId}
+        <span class="ws-room-card__active" title="Student is actively typing"></span>
+      </div>
       <div class="ws-room-card__status ws-room-card__status${statusClass}">
         <span class="ws-room-card__status-dot"></span>
         ${statusLabel}
@@ -476,10 +962,10 @@ function createRoomCard(room) {
       ${interviewerName ? `<strong>${escHtml(interviewerName)}</strong> interviewing <strong>${escHtml(storytellerName)}</strong>` : studentNames.map((n) => `<strong>${escHtml(n)}</strong>`).join(', ')}
     </div>
     <div class="ws-room-card__meta">
-      <span class="ws-room-card__meta-item">Round ${round}</span>
-      ${roundStartedAt ? `<span class="ws-room-card__meta-item">${elapsedSince(roundStartedAt)} elapsed</span>` : ''}
-      <span class="ws-room-card__meta-item">${wordCount} words</span>
-      <span class="ws-room-card__meta-item">${relativeTime(lastInput)}</span>
+      <span class="ws-room-card__meta-item" data-field="round">Round ${round}</span>
+      ${roundStartedAt ? `<span class="ws-room-card__meta-item" data-field="elapsed" data-ts="${roundStartedAt}">${elapsedSince(roundStartedAt)} elapsed</span>` : '<span class="ws-room-card__meta-item" data-field="elapsed"></span>'}
+      <span class="ws-room-card__meta-item" data-field="wordCount">${wordCount} words</span>
+      <span class="ws-room-card__meta-item" data-field="lastInput" data-ts="${lastInput || ''}">${relativeTime(lastInput)}</span>
     </div>
     ${preview ? `<div class="ws-room-card__preview ws-room-card__preview--collapsed" data-full="${escAttr(preview)}">${escHtml(preview.slice(0, 150))}${preview.length > 150 ? '...' : ''}</div>` : ''}
     ${reasoning ? `<div class="ws-room-card__reasoning">${escHtml(reasoning)}</div>` : ''}
@@ -491,18 +977,7 @@ function createRoomCard(room) {
   // Expand/collapse preview
   const previewEl = card.querySelector('.ws-room-card__preview');
   if (previewEl) {
-    previewEl.addEventListener('click', () => {
-      if (previewEl.classList.contains('ws-room-card__preview--collapsed')) {
-        previewEl.classList.remove('ws-room-card__preview--collapsed');
-        previewEl.classList.add('ws-room-card__preview--expanded');
-        previewEl.textContent = previewEl.dataset.full;
-      } else {
-        previewEl.classList.remove('ws-room-card__preview--expanded');
-        previewEl.classList.add('ws-room-card__preview--collapsed');
-        const full = previewEl.dataset.full;
-        previewEl.textContent = full.slice(0, 150) + (full.length > 150 ? '...' : '');
-      }
-    });
+    previewEl.addEventListener('click', togglePreview);
   }
 
   // Nudge button
@@ -519,7 +994,7 @@ function escHtml(str) {
 }
 
 function escAttr(str) {
-  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /* ============================================
@@ -533,12 +1008,10 @@ const NUDGE_SUGGESTIONS = [
 ];
 
 function initNudgeModal() {
-  // Suggestion buttons
   document.querySelectorAll('.ws-nudge-suggestion').forEach((btn) => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.idx, 10);
       $('nudge-custom').value = NUDGE_SUGGESTIONS[idx];
-      // Highlight selected
       document.querySelectorAll('.ws-nudge-suggestion').forEach((b) => b.classList.remove('ws-nudge-suggestion--selected'));
       btn.classList.add('ws-nudge-suggestion--selected');
     });
@@ -547,7 +1020,6 @@ function initNudgeModal() {
   $('btn-nudge-cancel').addEventListener('click', closeNudgeModal);
   $('btn-nudge-send').addEventListener('click', handleSendNudge);
 
-  // Close on overlay click
   $('nudge-modal').addEventListener('click', (e) => {
     if (e.target === $('nudge-modal')) closeNudgeModal();
   });
@@ -555,8 +1027,13 @@ function initNudgeModal() {
 
 function openNudgeModal(roomId) {
   state.nudgeTargetRoomId = roomId;
+
+  // Pre-fill with AI-suggested nudge if available
+  const room = state.rooms.find(r => String(r.id) === String(roomId));
+  const suggested = room?._suggestedNudge;
+
   $('nudge-modal-target').textContent = `To Room ${roomId}`;
-  $('nudge-custom').value = '';
+  $('nudge-custom').value = suggested || '';
   document.querySelectorAll('.ws-nudge-suggestion').forEach((b) => b.classList.remove('ws-nudge-suggestion--selected'));
   $('nudge-modal').classList.add('ws-modal-overlay--visible');
 }
@@ -601,7 +1078,7 @@ function tryResume() {
   if (wasAuth && savedSession) {
     state.authenticated = true;
     state.sessionId = savedSession;
-    $('dash-subtitle').textContent = `Session: ${state.sessionId}`;
+    showSessionSubtitle(state.sessionId);
     startMonitoring();
   } else if (wasAuth) {
     state.authenticated = true;
@@ -616,11 +1093,11 @@ function init() {
   initNudgeModal();
 
   $('btn-back-sessions').addEventListener('click', () => {
-    if (state.refreshInterval) clearInterval(state.refreshInterval);
-    if (state.inactivityInterval) clearInterval(state.inactivityInterval);
-    state.refreshInterval = null;
-    state.inactivityInterval = null;
+    stopMonitoring();
     state.sessionId = '';
+    state.rooms = [];
+    state.lastPulse = {};
+    state.dirtyRooms.clear();
     sessionStorage.removeItem('ws_dash_sessionId');
     $('dash-subtitle').textContent = 'Facilitator view';
     loadSessions();

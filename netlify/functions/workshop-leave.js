@@ -1,7 +1,7 @@
 /**
- * Workshop Join
+ * Workshop Leave
  *
- * POST: Student joins a room (as student1 or student2)
+ * POST: Remove a student from a room so they can pick a different one
  */
 
 const { getStore } = require('@netlify/blobs');
@@ -49,28 +49,19 @@ exports.handler = async (event) => {
       return json(404, { error: 'Room not found' });
     }
 
-    // Allow rejoin if student is already in the room
-    const alreadyIn =
-      room.students.student1 === studentName ||
-      room.students.student2 === studentName;
-
-    if (alreadyIn) {
-      return json(200, { room, rejoined: true });
-    }
-
-    // Assign to first available slot
-    if (!room.students.student1) {
-      room.students.student1 = studentName;
-    } else if (!room.students.student2) {
-      room.students.student2 = studentName;
+    // Remove student from their slot
+    if (room.students.student1 === studentName) {
+      room.students.student1 = null;
+    } else if (room.students.student2 === studentName) {
+      room.students.student2 = null;
     } else {
-      return json(409, { error: 'Room is full' });
+      return json(404, { error: 'Student not found in this room' });
     }
 
     await store.setJSON(`room:${sessionId}:${roomId}`, room);
-    return json(200, { room });
+    return json(200, { ok: true });
   } catch (error) {
-    console.error('Join room error:', error);
-    return json(500, { error: 'Failed to join room' });
+    console.error('Leave room error:', error);
+    return json(500, { error: 'Failed to leave room' });
   }
 };

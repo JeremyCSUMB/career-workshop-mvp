@@ -81,8 +81,11 @@ exports.handler = async (event) => {
 
     // Gather submissions about this student (they were the storyteller,
     // so the interviewer submitted notes about them in the given round)
+    // round comes in as a number (1 or 2) but submissions store
+    // round as strings like "round1-notes" or "round1-followup"
+    const roundPrefix = `round${round}`;
     const relevantSubmissions = room.submissions.filter(
-      s => s.round === round && s.studentName !== studentName
+      s => s.round.startsWith(roundPrefix) && s.studentName !== studentName
     );
 
     if (relevantSubmissions.length === 0) {
@@ -112,12 +115,15 @@ exports.handler = async (event) => {
     // Store profile in room state
     room.capabilityProfile = profile;
 
-    // Advance round: if round 1 just ended, set up for round 2
-    if (round === 1) {
-      room.currentRound = 2;
+    // Advance round: fetch session to know total rounds
+    const session = await store.get(`session:${sessionId}`, { type: 'json' });
+    const totalRounds = session?.rounds || 2;
+
+    if (round < totalRounds) {
+      room.currentRound = round + 1;
       room.roundStartTime = new Date().toISOString();
-    } else if (round === 2) {
-      room.currentRound = 3; // signals complete
+    } else {
+      room.currentRound = totalRounds + 1; // signals complete
     }
 
     await store.setJSON(`room:${sessionId}:${roomId}`, room);
