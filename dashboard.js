@@ -41,6 +41,7 @@ const screens = {
   login: $('screen-login'),
   session: $('screen-session'),
   dashboard: $('screen-dashboard'),
+  analytics: $('screen-analytics'),
 };
 
 function showScreen(name) {
@@ -285,6 +286,7 @@ function buildSessionCard(s, isEnded) {
     <div class="ws-session-card__actions">
       ${isEnded ? '' : `<button class="ws-btn ws-btn--small" data-monitor-id="${escAttr(s.id)}">Monitor</button>`}
       ${isEnded ? '' : `<button class="ws-btn ws-btn--small ws-btn--secondary" data-copy-link-id="${escAttr(s.id)}">Copy Join Link</button>`}
+      ${isEnded ? `<button class="ws-btn ws-btn--small" data-analytics-id="${escAttr(s.id)}" data-analytics-name="${escAttr(s.name)}">View Analytics</button>` : ''}
       <button class="ws-btn ws-btn--small ws-btn--secondary" data-download-id="${escAttr(s.id)}">Download JSON</button>
       ${isEnded ? '' : `<button class="ws-btn ws-btn--small ws-btn--danger" data-end-id="${escAttr(s.id)}">End Session</button>`}
     </div>
@@ -303,6 +305,10 @@ function buildSessionCard(s, isEnded) {
     copyLinkBtn.addEventListener('click', () => copyJoinLink(s.id, copyLinkBtn));
   }
   card.querySelector('[data-download-id]').addEventListener('click', () => downloadSessionJSON(s.id, s.name));
+  const analyticsBtn = card.querySelector('[data-analytics-id]');
+  if (analyticsBtn) {
+    analyticsBtn.addEventListener('click', () => loadAnalytics(s.id, s.name));
+  }
   const endBtn = card.querySelector('[data-end-id]');
   if (endBtn) {
     endBtn.addEventListener('click', () => endSession(s.id, s.name));
@@ -353,6 +359,197 @@ async function endSession(sessionId, sessionName) {
   } catch (err) {
     alert('Error ending session: ' + err.message);
   }
+}
+
+/* ============================================
+   Post-Session Analytics
+   ============================================ */
+
+const analyticsCache = {};
+let analyticsSessionId = '';
+
+async function loadAnalytics(sessionId, sessionName) {
+  analyticsSessionId = sessionId;
+  showScreen('analytics');
+  $('analytics-loading').classList.remove('ws-hidden');
+  $('analytics-content').classList.add('ws-hidden');
+
+  try {
+    if (analyticsCache[sessionId]) {
+      renderAnalytics(analyticsCache[sessionId], sessionName);
+      return;
+    }
+
+    const data = await api('workshop-analytics', { params: { sessionId } });
+    analyticsCache[sessionId] = data.analytics;
+    renderAnalytics(data.analytics, sessionName);
+  } catch (err) {
+    $('analytics-loading').innerHTML = `
+      <div class="ws-error" style="margin-bottom:12px;">Failed to load analytics: ${escHtml(err.message)}</div>
+      <button class="ws-btn ws-btn--secondary ws-btn--small" id="btn-analytics-retry">Retry</button>
+    `;
+    $('btn-analytics-retry').addEventListener('click', () => loadAnalytics(sessionId, sessionName));
+  }
+}
+
+function renderAnalytics(analytics, sessionName) {
+  $('analytics-loading').classList.add('ws-hidden');
+  $('analytics-content').classList.remove('ws-hidden');
+
+  const { computed, aiAnalysis } = analytics;
+
+  // Session Overview
+  $('analytics-session-name').textContent = sessionName || computed.session.name || computed.session.id;
+
+  const stats = [
+    { value: formatAnalyticsDate(computed.session.created), label: 'Date' },
+    { value: computed.session.durationMinutes != null ? computed.session.durationMinutes + 'm' : '\u2014', label: 'Duration' },
+    { value: computed.session.roomCount, label: 'Rooms' },
+    { value: computed.session.studentCount, label: 'Students' },
+    { value: computed.session.totalQuestions, label: 'Questions' },
+    { value: computed.aggregates.totalWords.toLocaleString(), label: 'Total Words' },
+  ];
+  $('analytics-overview-stats').innerHTML = stats.map(s =>
+    `<div class="ws-analytics-stat"><span class="ws-analytics-stat__value">${s.value}</span><span class="ws-analytics-stat__label">${s.label}</span></div>`
+  ).join('');
+
+  renderEngagementBreakdown(computed.engagement);
+  renderAiInsights(aiAnalysis);
+  renderAnalyticsRoomGrid(computed.rooms);
+  renderCapabilityHighlights(computed.rooms, aiAnalysis.capabilityHighlights);
+}
+
+function renderEngagementBreakdown(engagement) {
+  const d = engagement.distribution;
+  const total = d.red + d.yellow + d.green + d.unclassified;
+  if (total === 0) {
+    $('analytics-engagement').innerHTML = '<p style="color:var(--ci-text-muted);">No engagement data.</p>';
+    return;
+  }
+
+  const segments = [
+    { cls: 'green', count: d.green },
+    { cls: 'yellow', count: d.yellow },
+    { cls: 'red', count: d.red },
+    { cls: 'grey', count: d.unclassified },
+  ].filter(s => s.count > 0);
+
+  const bar = `<div class="ws-analytics-bar">${segments.map(s =>
+    `<div class="ws-analytics-bar__seg ws-analytics-bar__seg--${s.cls}" style="width:${(s.count / total) * 100}%"></div>`
+  ).join('')}</div>`;
+
+  const legend = `<div class="ws-analytics-legend">
+    <span class="ws-analytics-legend__item"><span class="ws-overview__dot ws-overview__dot--green"></span> Green: ${d.green}</span>
+    <span class="ws-analytics-legend__item"><span class="ws-overview__dot ws-overview__dot--yellow"></span> Yellow: ${d.yellow}</span>
+    <span class="ws-analytics-legend__item"><span class="ws-overview__dot ws-overview__dot--red"></span> Red: ${d.red}</span>
+    ${d.unclassified > 0 ? `<span class="ws-analytics-legend__item"><span class="ws-overview__dot" style="background:var(--ci-text-muted);"></span> Unclassified: ${d.unclassified}</span>` : ''}
+  </div>`;
+
+  $('analytics-engagement').innerHTML = bar + legend;
+}
+
+function renderAiInsights(ai) {
+  const parts = [];
+
+  if (ai.overallAssessment) {
+    parts.push(`<p class="ws-analytics-assessment">${escHtml(ai.overallAssessment)}</p>`);
+  }
+  if (ai.engagementNarrative) {
+    parts.push(`<p style="color:var(--ci-text-muted);font-size:15px;margin:0 0 16px;">${escHtml(ai.engagementNarrative)}</p>`);
+  }
+  const sections = [
+    { title: 'Patterns Observed', items: ai.patterns },
+    { title: 'What Worked', items: ai.whatWorked },
+    { title: 'Areas for Improvement', items: ai.areasForImprovement },
+    { title: 'Recommendations', items: ai.recommendations },
+  ];
+  for (const sec of sections) {
+    if (sec.items?.length) {
+      parts.push(`<h4 class="ws-analytics-subhead">${sec.title}</h4><ul class="ws-analytics-list">${sec.items.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`);
+    }
+  }
+
+  $('analytics-ai-insights').innerHTML = parts.join('');
+}
+
+let currentRoomData = [];
+
+function renderAnalyticsRoomGrid(rooms) {
+  currentRoomData = rooms;
+
+  $('analytics-sort-row').innerHTML = `
+    <button class="ws-btn ws-btn--small ws-btn--secondary ws-analytics-sort--active" data-sort="status">By Status</button>
+    <button class="ws-btn ws-btn--small ws-btn--secondary" data-sort="words">By Word Count</button>
+    <button class="ws-btn ws-btn--small ws-btn--secondary" data-sort="room">By Room #</button>
+  `;
+
+  $('analytics-sort-row').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-sort]');
+    if (!btn) return;
+    $('analytics-sort-row').querySelectorAll('button').forEach(b => b.classList.remove('ws-analytics-sort--active'));
+    btn.classList.add('ws-analytics-sort--active');
+    renderRoomCards(currentRoomData, btn.dataset.sort);
+  });
+
+  renderRoomCards(rooms, 'status');
+}
+
+function renderRoomCards(rooms, sortBy) {
+  const statusOrder = { red: 0, yellow: 1, green: 2 };
+  const sorted = [...rooms].sort((a, b) => {
+    if (sortBy === 'status') return (statusOrder[a.finalStatus] ?? 3) - (statusOrder[b.finalStatus] ?? 3);
+    if (sortBy === 'words') return (b.totalWordCount || 0) - (a.totalWordCount || 0);
+    return String(a.roomId).localeCompare(String(b.roomId), undefined, { numeric: true });
+  });
+
+  $('analytics-room-grid').innerHTML = sorted.map(room => {
+    const sc = room.finalStatus || 'none';
+    return `
+      <div class="ws-analytics-room-card">
+        <div class="ws-analytics-room-card__top">
+          <span class="ws-analytics-room-card__id">Room ${escHtml(String(room.roomId))}</span>
+          <span class="ws-room-card__status ws-room-card__status--${sc}"><span class="ws-room-card__status-dot"></span>${sc}</span>
+        </div>
+        <div class="ws-analytics-room-card__students">${room.students.map(n => escHtml(n)).join(', ') || '<em>No students</em>'}</div>
+        <div class="ws-analytics-room-card__meta">
+          <span>${room.totalWordCount.toLocaleString()} words</span>
+          <span>${room.submissionCount} submissions</span>
+          ${room.nudgeCount > 0 ? `<span>${room.nudgeCount} nudges</span>` : ''}
+          <span>${room.roundsCompleted}/${room.totalRounds} rounds</span>
+        </div>
+        ${room.capabilityProfile?.summary ? `<div class="ws-analytics-room-card__profile">${escHtml(room.capabilityProfile.summary)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderCapabilityHighlights(rooms, aiHighlights) {
+  const section = $('analytics-capabilities-section');
+  const container = $('analytics-capabilities');
+
+  const roomsWithProfiles = rooms.filter(r => r.capabilityProfile?.capabilities?.length);
+  if (roomsWithProfiles.length === 0 && (!aiHighlights || aiHighlights.length === 0)) {
+    section.classList.add('ws-hidden');
+    return;
+  }
+  section.classList.remove('ws-hidden');
+
+  let html = '';
+  if (aiHighlights?.length) {
+    html += `<ul class="ws-analytics-list">${aiHighlights.map(h => `<li>${escHtml(h)}</li>`).join('')}</ul>`;
+  }
+
+  const allCaps = roomsWithProfiles.flatMap(r => (r.capabilityProfile.capabilities || []).map(c => c.capability));
+  if (allCaps.length > 0) {
+    html += `<div class="ws-capability-tags" style="margin-top:12px;">${allCaps.map(c => `<span class="ws-capability-tag">${escHtml(c)}</span>`).join('')}</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function formatAnalyticsDate(iso) {
+  if (!iso) return '\u2014';
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /* ============================================
@@ -1133,6 +1330,22 @@ function init() {
 
   $('btn-download-json').addEventListener('click', () => {
     if (state.sessionId) downloadSessionJSON(state.sessionId, '');
+  });
+
+  $('btn-back-from-analytics').addEventListener('click', () => {
+    showScreen('session');
+    loadSessions();
+  });
+
+  $('btn-analytics-download').addEventListener('click', () => {
+    if (!analyticsSessionId || !analyticsCache[analyticsSessionId]) return;
+    const blob = new Blob([JSON.stringify(analyticsCache[analyticsSessionId], null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-${analyticsSessionId}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   });
 
   tryResume();

@@ -112,8 +112,13 @@ exports.handler = async (event) => {
     profile.round = round;
     profile.generatedAt = new Date().toISOString();
 
-    // Store profile in room state
-    room.capabilityProfile = profile;
+    // Store profile in room state (accumulate across rounds)
+    if (!Array.isArray(room.capabilityProfiles)) {
+      // Migrate from old single-profile format
+      room.capabilityProfiles = room.capabilityProfile ? [room.capabilityProfile] : [];
+    }
+    room.capabilityProfiles.push(profile);
+    room.capabilityProfile = profile; // keep for backward compat
 
     // Advance round: fetch session to know total rounds
     const session = await store.get(`session:${sessionId}`, { type: 'json' });

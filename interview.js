@@ -106,6 +106,11 @@ function showScreen(name) {
       leaveBtn.classList.remove('ws-hidden');
     }
   }
+
+  // Load profiles when reaching complete screen
+  if (name === 'complete') {
+    loadCompleteProfiles();
+  }
 }
 
 function showError(el, msg) {
@@ -763,6 +768,259 @@ function setupStorytellerWait() {
 }
 
 /* ============================================
+   Complete screen — profile preview & PDF
+   ============================================ */
+
+let completeProfilesLoaded = false;
+
+async function loadCompleteProfiles() {
+  if (completeProfilesLoaded) return;
+  $('complete-loading').classList.remove('ws-hidden');
+
+  try {
+    const data = await api('workshop-room', {
+      params: { sessionId: state.sessionId, roomId: state.roomId },
+    });
+    const room = data.room || data;
+    const profiles = room.capabilityProfiles || (room.capabilityProfile ? [room.capabilityProfile] : []);
+    const myProfiles = profiles.filter(p => p.studentName === state.studentName);
+
+    renderCompleteProfiles(myProfiles);
+    completeProfilesLoaded = true;
+  } catch {
+    $('complete-profiles').innerHTML = '<p style="color:var(--ci-text-muted);font-size:14px;">Could not load profiles. You can still download them.</p>';
+  } finally {
+    $('complete-loading').classList.add('ws-hidden');
+  }
+}
+
+function renderCompleteProfiles(profiles) {
+  const container = $('complete-profiles');
+  if (profiles.length === 0) {
+    container.innerHTML = '<p style="color:var(--ci-text-muted);font-size:14px;">No capability profiles found for you yet.</p>';
+    return;
+  }
+  container.innerHTML = profiles.map((p, i) => `
+    <div class="ws-profile-card ws-profile-card--visible" style="margin-top:16px;">
+      <h3>Round ${p.round} Profile</h3>
+      <p>${escHtml(p.summary || '')}</p>
+      <div class="ws-capability-tags">
+        ${(p.capabilities || []).map(cap => {
+          const name = typeof cap === 'string' ? cap : cap.capability || cap.name || '';
+          const evidence = typeof cap === 'object' ? (cap.evidence || '') : '';
+          return `<div class="ws-capability-tag"><strong>${escHtml(name)}</strong>${evidence ? `<br><span style="font-size:13px;color:var(--ci-text-muted)">${escHtml(evidence)}</span>` : ''}</div>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function handleDownloadPDF() {
+  $('btn-download-pdf').disabled = true;
+  $('btn-download-pdf').textContent = 'Preparing...';
+
+  try {
+    const data = await api('workshop-room', {
+      params: { sessionId: state.sessionId, roomId: state.roomId },
+    });
+    const room = data.room || data;
+    const profiles = room.capabilityProfiles || (room.capabilityProfile ? [room.capabilityProfile] : []);
+    const myProfiles = profiles.filter(p => p.studentName === state.studentName);
+
+    if (myProfiles.length === 0) {
+      alert('No capability profiles found for you yet.');
+      return;
+    }
+
+    openPDFWindow(myProfiles);
+  } catch (err) {
+    alert('Error loading profiles: ' + err.message);
+  } finally {
+    $('btn-download-pdf').disabled = false;
+    $('btn-download-pdf').textContent = 'Download Your Profile (PDF)';
+  }
+}
+
+function openPDFWindow(profiles) {
+  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const profilesHTML = profiles.map(p => {
+    const caps = (p.capabilities || []).map(cap => {
+      const name = typeof cap === 'string' ? cap : cap.capability || cap.name || '';
+      const evidence = typeof cap === 'object' ? (cap.evidence || '') : '';
+      return `<div class="cap-item">
+        <div class="cap-name">${esc(name)}</div>
+        ${evidence ? `<div class="cap-evidence">${esc(evidence)}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="profile-section">
+        <h2>Round ${p.round}</h2>
+        <p class="summary">${esc(p.summary || '')}</p>
+        <h3>Capabilities Identified</h3>
+        <div class="capabilities">${caps}</div>
+      </div>
+    `;
+  }).join('<hr>');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Capability Profile — ${esc(state.studentName)}</title>
+<style>
+  @page { margin: 0.75in; size: letter; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #1a1a2e;
+    line-height: 1.6;
+    padding: 40px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 3px solid #6c63ff;
+  }
+  .header h1 {
+    font-size: 28px;
+    color: #6c63ff;
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    font-size: 14px;
+    color: #666;
+  }
+  .student-name {
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 8px;
+    color: #1a1a2e;
+  }
+  .profile-section {
+    margin: 24px 0;
+  }
+  .profile-section h2 {
+    font-size: 18px;
+    color: #6c63ff;
+    margin-bottom: 8px;
+  }
+  .profile-section h3 {
+    font-size: 15px;
+    color: #444;
+    margin: 16px 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .summary {
+    font-size: 15px;
+    color: #333;
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+  .capabilities {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cap-item {
+    padding: 12px 16px;
+    background: #f4f3ff;
+    border-left: 4px solid #6c63ff;
+    border-radius: 4px;
+  }
+  .cap-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #1a1a2e;
+  }
+  .cap-evidence {
+    font-size: 13px;
+    color: #555;
+    margin-top: 4px;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 28px 0;
+  }
+  .footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid #ddd;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+  }
+  .print-bar {
+    text-align: center;
+    padding: 16px;
+    margin-bottom: 24px;
+    background: #f8f8ff;
+    border-radius: 8px;
+  }
+  .print-bar button {
+    background: #6c63ff;
+    color: #fff;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .print-bar button:hover { background: #5548d9; }
+  .print-bar p {
+    font-size: 13px;
+    color: #666;
+    margin-top: 6px;
+  }
+  @media print {
+    .print-bar { display: none; }
+    body { padding: 0; }
+    .cap-item { break-inside: avoid; }
+    .profile-section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <div class="print-bar">
+    <button onclick="window.print()">Save as PDF</button>
+    <p>Use your browser's "Save as PDF" option in the print dialog.</p>
+  </div>
+  <div class="header">
+    <h1>Capability Profile</h1>
+    <div class="subtitle">Career Intelligence Workshop</div>
+    <div class="student-name">${esc(state.studentName)}</div>
+    <div class="subtitle">${esc(dateStr)}</div>
+  </div>
+  ${profilesHTML}
+  <div class="footer">
+    Generated by Career Intelligence Workshop &middot; ${esc(dateStr)}
+  </div>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+  } else {
+    alert('Pop-up blocked. Please allow pop-ups for this site.');
+  }
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+/* ============================================
    Resume from localStorage
    ============================================ */
 
@@ -905,6 +1163,7 @@ function leaveSession() {
   state.customTags = [];
   state.totalRounds = 1;
   state.prompts = [];
+  completeProfilesLoaded = false;
 
   // Clear localStorage
   ['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_totalRounds', 'ws_prompts'].forEach(k => localStorage.removeItem(k));
@@ -970,6 +1229,7 @@ function init() {
   $('btn-change-room-complete').addEventListener('click', changeRoom);
   $('btn-switch-session').addEventListener('click', switchSession);
   $('btn-switch-session-complete').addEventListener('click', switchSession);
+  $('btn-download-pdf').addEventListener('click', handleDownloadPDF);
 
   tryResume();
 }

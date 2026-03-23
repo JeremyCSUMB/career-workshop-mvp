@@ -105,6 +105,62 @@
       <div id="room-grid" class="ws-room-grid"></div>
     </div>
 
+    <!-- Screen: Post-Session Analytics -->
+    <div id="screen-analytics" class="ws-screen">
+      <div class="ws-dash-toolbar">
+        <button id="btn-back-from-analytics" class="ws-btn ws-btn--secondary ws-btn--small">Back to Sessions</button>
+        <button id="btn-analytics-download" class="ws-btn ws-btn--secondary ws-btn--small">Download Analytics</button>
+      </div>
+
+      <!-- Loading state -->
+      <div id="analytics-loading" class="ws-card" style="max-width:500px;margin:40px auto;text-align:center;">
+        <div class="ws-waiting">
+          <div class="ws-waiting__dots">
+            <div class="ws-waiting__dot"></div>
+            <div class="ws-waiting__dot"></div>
+            <div class="ws-waiting__dot"></div>
+          </div>
+          <p style="margin-top:12px;color:var(--ci-text-muted);">Generating analytics&hellip; this may take a moment.</p>
+        </div>
+      </div>
+
+      <!-- Analytics content (hidden until loaded) -->
+      <div id="analytics-content" class="ws-hidden">
+
+        <!-- Session Overview -->
+        <div class="ws-card ws-analytics-overview">
+          <h2 id="analytics-session-name" style="margin:0 0 4px;"></h2>
+          <div id="analytics-overview-stats" class="ws-analytics-overview__stats"></div>
+        </div>
+
+        <!-- Engagement Breakdown -->
+        <div class="ws-card">
+          <h3 style="margin:0 0 12px;">Engagement Breakdown</h3>
+          <div id="analytics-engagement"></div>
+        </div>
+
+        <!-- AI Analysis -->
+        <div class="ws-card">
+          <h3 style="margin:0 0 12px;">AI Analysis</h3>
+          <div id="analytics-ai-insights"></div>
+        </div>
+
+        <!-- Room Performance -->
+        <div class="ws-card">
+          <h3 style="margin:0 0 12px;">Room Performance</h3>
+          <div id="analytics-sort-row" class="ws-analytics-sort-row"></div>
+          <div id="analytics-room-grid" class="ws-analytics-room-grid"></div>
+        </div>
+
+        <!-- Capability Highlights -->
+        <div id="analytics-capabilities-section" class="ws-card">
+          <h3 style="margin:0 0 12px;">Capability Highlights</h3>
+          <div id="analytics-capabilities"></div>
+        </div>
+
+      </div>
+    </div>
+
   </main>
 
   <!-- Nudge modal -->

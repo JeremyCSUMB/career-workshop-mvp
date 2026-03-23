@@ -82,7 +82,7 @@
     <div id="screen-interview" class="ws-screen">
       <div class="ws-round-header">
         <div class="ws-round-header__left">
-          <h2 id="round-title">Round 1 of 2</h2>
+          <h2 id="round-title">Round 1</h2>
           <p id="round-roles"></p>
         </div>
         <div id="round-badge" class="ws-round-header__badge"></div>
@@ -101,7 +101,10 @@
           <div class="ws-field">
             <label class="ws-label" for="notes-textarea">Capture what your partner shares</label>
             <textarea id="notes-textarea" class="ws-textarea" placeholder="Listen carefully and write down what they did, how they approached it, and what happened..."></textarea>
-            <div id="notes-autosave" class="ws-autosave">Saved</div>
+            <div class="ws-textarea-footer">
+              <div id="notes-autosave" class="ws-autosave">Saved</div>
+              <div id="notes-counter" class="ws-char-counter">0 characters · 0 words</div>
+            </div>
           </div>
           <div class="ws-btn-row">
             <button id="btn-submit-notes" class="ws-btn">Submit Notes</button>
@@ -118,7 +121,10 @@
           <div class="ws-field" style="margin-top:16px;">
             <label class="ws-label" for="followup-textarea">Follow-up notes</label>
             <textarea id="followup-textarea" class="ws-textarea" placeholder="Capture their answers to the follow-up questions..."></textarea>
-            <div id="followup-autosave" class="ws-autosave">Saved</div>
+            <div class="ws-textarea-footer">
+              <div id="followup-autosave" class="ws-autosave">Saved</div>
+              <div id="followup-counter" class="ws-char-counter">0 characters · 0 words</div>
+            </div>
           </div>
           <div class="ws-btn-row">
             <button id="btn-submit-followup" class="ws-btn">Submit Follow-up Notes</button>
@@ -168,8 +174,20 @@
     <!-- Screen 4: Complete -->
     <div id="screen-complete" class="ws-screen">
       <div class="ws-card ws-card--centered">
-        <h2>Both rounds complete!</h2>
-        <p>Great work. Your facilitator will share next steps.</p>
+        <h2>All rounds complete!</h2>
+        <p>Great work. Download your capability profile to keep a record of what your peers discovered about you.</p>
+        <div id="complete-profiles"></div>
+        <div class="ws-btn-row" style="justify-content:center;margin-top:20px;">
+          <button id="btn-download-pdf" class="ws-btn">Download Your Profile (PDF)</button>
+        </div>
+        <div id="complete-loading" class="ws-hidden" style="text-align:center;margin-top:12px;">
+          <div class="ws-waiting__dots" style="justify-content:center;">
+            <div class="ws-waiting__dot"></div>
+            <div class="ws-waiting__dot"></div>
+            <div class="ws-waiting__dot"></div>
+          </div>
+          <p style="font-size:14px;color:var(--ci-text-muted);">Loading your profiles...</p>
+        </div>
         <div class="ws-btn-row" style="justify-content:center;margin-top:16px;">
           <button id="btn-change-room-complete" class="ws-btn ws-btn--secondary ws-btn--small">Back to Rooms</button>
           <button id="btn-switch-session-complete" class="ws-btn ws-btn--secondary ws-btn--small">Join a Different Session</button>
@@ -179,6 +197,9 @@
     </div>
 
   </main>
+
+  <!-- Theme toggle -->
+  <button id="theme-toggle" class="ws-theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"></button>
 
   <script type="module" src="interview.js"></script>
 </body>
