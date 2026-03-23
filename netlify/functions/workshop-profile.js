@@ -117,7 +117,7 @@ exports.handler = async (event) => {
 
     // Advance round: fetch session to know total rounds
     const session = await store.get(`session:${sessionId}`, { type: 'json' });
-    const totalRounds = session?.rounds || 2;
+    const totalRounds = session?.rounds || 1;
 
     if (round < totalRounds) {
       room.currentRound = round + 1;

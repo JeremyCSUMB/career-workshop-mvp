@@ -70,14 +70,14 @@
             <input id="new-room-count" class="ws-input" type="number" min="1" max="50" placeholder="e.g. 12">
           </div>
           <div class="ws-field">
-            <label class="ws-label" for="new-round-count">Number of Rounds</label>
-            <input id="new-round-count" class="ws-input" type="number" min="1" max="10" value="2" placeholder="e.g. 2">
-            <div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Students swap interviewer/storyteller roles each round.</div>
+            <label class="ws-label" for="new-round-count">Number of Questions</label>
+            <input id="new-round-count" class="ws-input" type="number" min="1" max="10" value="1" placeholder="e.g. 1">
+            <div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question is a full cycle &mdash; both partners take turns interviewing and sharing.</div>
           </div>
           <div class="ws-field">
-            <label class="ws-label">Round Prompts <span style="font-weight:400;color:var(--ci-text-muted);">(edit to customize)</span></label>
+            <label class="ws-label">Question Prompts <span style="font-weight:400;color:var(--ci-text-muted);">(edit to customize)</span></label>
             <div id="round-prompts-container"></div>
-            <div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each round shows its own prompt to students. Edit any prompt or leave as default.</div>
+            <div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question shows the same prompt for both turns. Edit any prompt or leave as default.</div>
           </div>
           <div id="create-error" class="ws-error ws-hidden"></div>
           <div class="ws-btn-row">
@@ -127,6 +127,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Theme toggle -->
+  <button id="theme-toggle" class="ws-theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"></button>
 
   <script type="module" src="dashboard.js"></script>
 </body>

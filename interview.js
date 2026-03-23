@@ -22,7 +22,7 @@ const state = {
   role: null,       // 'interviewer' | 'storyteller'
   partnerName: '',
   customTags: [],
-  totalRounds: parseInt(localStorage.getItem('ws_totalRounds') || '2', 10),
+  totalRounds: parseInt(localStorage.getItem('ws_totalRounds') || '1', 10),
   prompts: JSON.parse(localStorage.getItem('ws_prompts') || '[]'),
 };
 
@@ -71,8 +71,21 @@ function persist() {
   if (state.prompts.length > 0) localStorage.setItem('ws_prompts', JSON.stringify(state.prompts));
 }
 
+function currentQuestion() {
+  return Math.ceil(state.round / 2);
+}
+
+function totalQuestions() {
+  return Math.ceil(state.totalRounds / 2);
+}
+
+function questionTurn() {
+  return ((state.round - 1) % 2) + 1;
+}
+
 function applyPrompt() {
-  const prompt = state.prompts[state.round - 1];
+  const promptIndex = Math.floor((state.round - 1) / 2);
+  const prompt = state.prompts[promptIndex];
   if (prompt) {
     $('interview-prompt').textContent = prompt;
   }
@@ -137,6 +150,26 @@ function debouncedSave(textareaId, roundLabel) {
       flashAutosave(textareaId);
     }).catch(() => { /* silent */ });
   }, CFG.debounce_save_ms);
+}
+
+const MIN_CHARS = 80;
+
+function updateCounter(textareaId) {
+  const el = $(textareaId);
+  const counterId = textareaId.replace('textarea', 'counter');
+  const counter = $(counterId);
+  if (!el || !counter) return;
+  const text = el.value;
+  const chars = text.length;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const remaining = MIN_CHARS - chars;
+  if (remaining > 0) {
+    counter.textContent = `${chars} / ${MIN_CHARS} characters · ${words} words — ${remaining} more needed`;
+    counter.classList.add('ws-char-counter--short');
+  } else {
+    counter.textContent = `${chars} characters · ${words} words`;
+    counter.classList.remove('ws-char-counter--short');
+  }
 }
 
 function flashAutosave(textareaId) {
@@ -428,7 +461,7 @@ function startInterview() {
 
 function renderInterviewHeader() {
   const roles = determineRoles(state.students, state.round);
-  $('round-title').textContent = `Round ${state.round} of ${state.totalRounds}`;
+  $('round-title').textContent = `Question ${currentQuestion()} of ${totalQuestions()} · Turn ${questionTurn()} of 2`;
   $('round-roles').textContent = `${roles.interviewer} interviews ${roles.storyteller}`;
   $('round-badge').textContent = `Room ${state.roomId}`;
 }
@@ -453,10 +486,12 @@ function setupInterviewerPhases() {
   $('profile-summary').textContent = '';
   state.customTags = [];
 
-  // Debounced auto-save on notes textarea
+  // Debounced auto-save and character counter on notes textarea
   $('notes-textarea').oninput = () => {
+    updateCounter('notes-textarea');
     debouncedSave('notes-textarea', `round${state.round}-notes`);
   };
+  updateCounter('notes-textarea');
 
   $('btn-submit-notes').onclick = handleSubmitNotes;
   $('btn-more-questions').onclick = handleMoreQuestions;
@@ -471,6 +506,11 @@ function setupInterviewerPhases() {
 async function handleSubmitNotes() {
   const notes = $('notes-textarea').value.trim();
   if (!notes) return;
+  if (notes.length < MIN_CHARS) {
+    $('notes-textarea').focus();
+    updateCounter('notes-textarea');
+    return;
+  }
 
   $('btn-submit-notes').disabled = true;
   $('btn-submit-notes').textContent = 'Submitting...';
@@ -502,10 +542,12 @@ async function handleSubmitNotes() {
 
     renderFollowupCards(followupData.questions || followupData.followups || []);
 
-    // Debounced auto-save on follow-up textarea
+    // Debounced auto-save and character counter on follow-up textarea
     $('followup-textarea').oninput = () => {
+      updateCounter('followup-textarea');
       debouncedSave('followup-textarea', `round${state.round}-followup`);
     };
+    updateCounter('followup-textarea');
   } catch (err) {
     alert('Error submitting notes: ' + err.message);
   } finally {
@@ -560,6 +602,11 @@ function renderFollowupCards(questions) {
 async function handleSubmitFollowup() {
   const notes = $('followup-textarea').value.trim();
   if (!notes) return;
+  if (notes.length < MIN_CHARS) {
+    $('followup-textarea').focus();
+    updateCounter('followup-textarea');
+    return;
+  }
 
   $('btn-submit-followup').disabled = true;
   $('btn-submit-followup').textContent = 'Submitting...';
@@ -645,8 +692,12 @@ function renderProfile(data) {
   $('btn-next-round').onclick = handleNextRound;
   if (state.round >= state.totalRounds) {
     $('btn-next-round').textContent = 'Finish Workshop';
+  } else if (questionTurn() === 1) {
+    // Mid-question: next turn is same question, swapped roles
+    $('btn-next-round').textContent = 'Switch Roles';
   } else {
-    $('btn-next-round').textContent = `Continue to Round ${state.round + 1}`;
+    // End of question: moving to next question
+    $('btn-next-round').textContent = `Continue to Question ${currentQuestion() + 1}`;
   }
 }
 
@@ -702,7 +753,7 @@ function setupStorytellerWait() {
         persist();
         startInterview();
       }
-      if (currentRound >= 3) {
+      if (currentRound > state.totalRounds) {
         clearInterval(storytellerPollInterval);
         storytellerPollInterval = null;
         showScreen('complete');
@@ -758,6 +809,9 @@ function tryResume() {
     // Re-fetch rooms and show picker
     api('workshop-rooms', { params: { sessionId: state.sessionId } })
       .then((data) => {
+        if (data.rounds) state.totalRounds = data.rounds;
+        if (data.prompts) state.prompts = data.prompts;
+        persist();
         renderRoomPicker(data.rooms || []);
         showScreen('rooms');
       })
@@ -766,6 +820,31 @@ function tryResume() {
   }
 
   showScreen('entry');
+}
+
+/* ============================================
+   Theme Toggle
+   ============================================ */
+
+function initTheme() {
+  const saved = localStorage.getItem('ws_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcon(theme);
+
+  $('theme-toggle').addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('ws_theme', next);
+    updateThemeIcon(next);
+  });
+}
+
+function updateThemeIcon(theme) {
+  const btn = $('theme-toggle');
+  if (btn) btn.textContent = theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
 }
 
 /* ============================================
@@ -824,10 +903,11 @@ function leaveSession() {
   state.role = null;
   state.partnerName = '';
   state.customTags = [];
-  state.prompt = '';
+  state.totalRounds = 1;
+  state.prompts = [];
 
   // Clear localStorage
-  ['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_prompt'].forEach(k => localStorage.removeItem(k));
+  ['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_totalRounds', 'ws_prompts'].forEach(k => localStorage.removeItem(k));
 
   // Reset form inputs
   $('entry-session').value = '';
@@ -864,9 +944,10 @@ function switchSession() {
   state.role = null;
   state.partnerName = '';
   state.customTags = [];
-  state.prompt = '';
+  state.totalRounds = 1;
+  state.prompts = [];
 
-  ['ws_sessionId', 'ws_roomId', 'ws_round', 'ws_phase', 'ws_prompt'].forEach(k => localStorage.removeItem(k));
+  ['ws_sessionId', 'ws_roomId', 'ws_round', 'ws_phase', 'ws_totalRounds', 'ws_prompts'].forEach(k => localStorage.removeItem(k));
 
   // Pre-fill name so they only need to enter a new session code
   state.studentName = savedName;
@@ -878,6 +959,7 @@ function switchSession() {
 }
 
 function init() {
+  initTheme();
   initEntry();
 
   $('nudge-dismiss').addEventListener('click', dismissNudge);

@@ -175,7 +175,7 @@ function initSession() {
 }
 
 function renderRoundPromptFields() {
-  const count = Math.max(1, Math.min(10, parseInt($('new-round-count').value, 10) || 2));
+  const count = Math.max(1, Math.min(10, parseInt($('new-round-count').value, 10) || 1));
   const container = $('round-prompts-container');
 
   // Preserve existing values
@@ -189,7 +189,7 @@ function renderRoundPromptFields() {
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'margin-bottom:12px;';
     wrapper.innerHTML = `
-      <label class="ws-label" style="font-size:13px;margin-bottom:4px;">Round ${i}</label>
+      <label class="ws-label" style="font-size:13px;margin-bottom:4px;">Question ${i}</label>
       <textarea class="ws-textarea" data-round="${i}" style="min-height:60px;" placeholder="Leave blank to use the default prompt">${existing[String(i)] !== undefined ? escHtml(existing[String(i)]) : escHtml(DEFAULT_PROMPT)}</textarea>
     `;
     container.appendChild(wrapper);
@@ -199,17 +199,17 @@ function renderRoundPromptFields() {
 async function handleCreateSession() {
   const name = $('new-session-name').value.trim();
   const roomCount = parseInt($('new-room-count').value, 10);
-  const roundCount = Math.max(1, Math.min(10, parseInt($('new-round-count').value, 10) || 2));
+  const questionCount = Math.max(1, Math.min(10, parseInt($('new-round-count').value, 10) || 1));
   const errEl = $('create-error');
   hideError(errEl);
 
   if (!name) return showError(errEl, 'Please enter a session name.');
   if (!roomCount || roomCount < 1) return showError(errEl, 'Please enter a valid room count.');
 
-  // Collect per-round prompts
+  // Collect per-question prompts
   const prompts = [];
   const container = $('round-prompts-container');
-  for (let i = 1; i <= roundCount; i++) {
+  for (let i = 1; i <= questionCount; i++) {
     const ta = container.querySelector(`textarea[data-round="${i}"]`);
     const val = ta ? ta.value.trim() : '';
     prompts.push(val || DEFAULT_PROMPT);
@@ -220,7 +220,7 @@ async function handleCreateSession() {
 
   try {
     const data = await api('workshop-session', {
-      body: { name, roomCount, rounds: roundCount, prompts },
+      body: { name, roomCount, rounds: questionCount * 2, questions: questionCount, prompts },
     });
     state.sessionId = data.session?.id || data.sessionId || data.id;
     showSessionSubtitle(state.sessionId);
@@ -740,7 +740,7 @@ function renderOverview() {
     if (s === 'red') dot.style.background = 'var(--ws-red)';
     else if (s === 'yellow') dot.style.background = 'var(--ws-yellow)';
     else if (s === 'green') dot.style.background = 'var(--ws-green)';
-    else dot.style.background = '#ccc';
+    else dot.style.background = 'var(--ci-grey-dot)';
     strip.appendChild(dot);
   });
 }
@@ -793,7 +793,8 @@ function updateRoomCard(room) {
 
   // Meta fields
   const roundEl = existing.querySelector('[data-field="round"]');
-  if (roundEl) roundEl.textContent = `Round ${room.currentRound || 1}`;
+  const r = room.currentRound || 1;
+  if (roundEl) roundEl.textContent = `Q${Math.ceil(r / 2)} · Turn ${((r - 1) % 2) + 1}`;
 
   const wordEl = existing.querySelector('[data-field="wordCount"]');
   if (wordEl) {
@@ -962,7 +963,7 @@ function createRoomCard(room) {
       ${interviewerName ? `<strong>${escHtml(interviewerName)}</strong> interviewing <strong>${escHtml(storytellerName)}</strong>` : studentNames.map((n) => `<strong>${escHtml(n)}</strong>`).join(', ')}
     </div>
     <div class="ws-room-card__meta">
-      <span class="ws-room-card__meta-item" data-field="round">Round ${round}</span>
+      <span class="ws-room-card__meta-item" data-field="round">Q${Math.ceil(round / 2)} · Turn ${((round - 1) % 2) + 1}</span>
       ${roundStartedAt ? `<span class="ws-room-card__meta-item" data-field="elapsed" data-ts="${roundStartedAt}">${elapsedSince(roundStartedAt)} elapsed</span>` : '<span class="ws-room-card__meta-item" data-field="elapsed"></span>'}
       <span class="ws-room-card__meta-item" data-field="wordCount">${wordCount} words</span>
       <span class="ws-room-card__meta-item" data-field="lastInput" data-ts="${lastInput || ''}">${relativeTime(lastInput)}</span>
@@ -1068,6 +1069,31 @@ async function handleSendNudge() {
 }
 
 /* ============================================
+   Theme Toggle
+   ============================================ */
+
+function initTheme() {
+  const saved = localStorage.getItem('ws_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcon(theme);
+
+  $('theme-toggle').addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('ws_theme', next);
+    updateThemeIcon(next);
+  });
+}
+
+function updateThemeIcon(theme) {
+  const btn = $('theme-toggle');
+  if (btn) btn.textContent = theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+}
+
+/* ============================================
    Init
    ============================================ */
 
@@ -1088,6 +1114,7 @@ function tryResume() {
 }
 
 function init() {
+  initTheme();
   initLogin();
   initSession();
   initNudgeModal();
