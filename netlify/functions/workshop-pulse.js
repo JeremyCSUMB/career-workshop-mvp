@@ -40,10 +40,12 @@ exports.handler = async (event) => {
 
   try {
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
+    const allData = await Promise.all(
+      blobs.map((blob) => store.get(blob.key, { type: 'json' }))
+    );
     const rooms = [];
 
-    for (const blob of blobs) {
-      const data = await store.get(blob.key, { type: 'json' });
+    for (const data of allData) {
       if (!data) continue;
 
       const students = data.students || {};

@@ -43,11 +43,9 @@ exports.handler = async (event) => {
     const prompts = session?.prompts || null;
 
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
-    const rooms = [];
-    for (const blob of blobs) {
-      const data = await store.get(blob.key, { type: 'json' });
-      if (data) rooms.push(data);
-    }
+    const rooms = (await Promise.all(
+      blobs.map((blob) => store.get(blob.key, { type: 'json' }))
+    )).filter(Boolean);
 
     return json(200, { rooms, rounds, prompts });
   } catch (error) {

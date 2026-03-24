@@ -5,6 +5,15 @@
 [functions]
   directory = "netlify/functions"
 
+[functions."workshop-analytics"]
+  timeout = 60
+
+[functions."workshop-profile"]
+  timeout = 60
+
+[functions."workshop-classify"]
+  timeout = 60
+
 # CORS headers for the function endpoint
 [[headers]]
   for = "/.netlify/functions/*"

@@ -49,11 +49,9 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'GET') {
     try {
       const { blobs } = await store.list({ prefix: 'session:' });
-      const sessions = [];
-      for (const blob of blobs) {
-        const data = await store.get(blob.key, { type: 'json' });
-        if (data) sessions.push(data);
-      }
+      const sessions = (await Promise.all(
+        blobs.map((blob) => store.get(blob.key, { type: 'json' }))
+      )).filter(Boolean);
       return json(200, { sessions });
     } catch (error) {
       console.error('List sessions error:', error);

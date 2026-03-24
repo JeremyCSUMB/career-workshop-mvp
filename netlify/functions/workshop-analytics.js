@@ -6,6 +6,7 @@
  */
 
 const { getStore } = require('@netlify/blobs');
+const { callClaude } = require('./lib/anthropic');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -19,34 +20,6 @@ function json(statusCode, data) {
     headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
     body: JSON.stringify(data),
   };
-}
-
-async function callClaude(system, userMessage) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      system,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Anthropic API error (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-  return data.content?.[0]?.text || '';
 }
 
 function median(arr) {
@@ -225,13 +198,11 @@ exports.handler = async (event) => {
       return json(404, { error: 'Session not found' });
     }
 
-    // Fetch all rooms
+    // Fetch all rooms in parallel
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
-    const rooms = [];
-    for (const blob of blobs) {
-      const data = await store.get(blob.key, { type: 'json' });
-      if (data) rooms.push(data);
-    }
+    const rooms = (await Promise.all(
+      blobs.map((blob) => store.get(blob.key, { type: 'json' }))
+    )).filter(Boolean);
 
     // Compute quantitative metrics
     const computed = computeMetrics(session, rooms);
@@ -251,7 +222,7 @@ exports.handler = async (event) => {
     } else {
       // Build prompt and call AI
       const userMessage = buildAiPrompt(computed, rooms);
-      const aiText = await callClaude(ANALYTICS_SYSTEM_PROMPT, userMessage);
+      const aiText = await callClaude(ANALYTICS_SYSTEM_PROMPT, userMessage, { maxTokens: 2048 });
 
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
