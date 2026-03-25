@@ -1,6 +1,6 @@
 [build]
-  # No build step needed — static files served directly
-  publish = "."
+  command = "npm run build"
+  publish = "build"
 
 [functions]
   directory = "netlify/functions"
@@ -21,4 +21,3 @@
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Headers = "Content-Type"
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-
