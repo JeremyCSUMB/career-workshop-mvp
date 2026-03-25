@@ -267,9 +267,15 @@ function initEntry() {
     state.sessionId = codeParam;
     // Clean the URL without reloading so the param doesn't persist on refresh
     window.history.replaceState({}, '', window.location.pathname);
+    // Lock the session code field so it can't be accidentally changed
+    const sessionInput = $('entry-session');
+    sessionInput.value = codeParam;
+    sessionInput.disabled = true;
+    sessionInput.style.opacity = '0.7';
+    sessionInput.style.cursor = 'not-allowed';
   }
 
-  if (state.sessionId) $('entry-session').value = state.sessionId;
+  if (state.sessionId && !$('entry-session').disabled) $('entry-session').value = state.sessionId;
   if (state.studentName) $('entry-name').value = state.studentName;
 
   // If code came from URL and we already have a saved name, auto-submit
