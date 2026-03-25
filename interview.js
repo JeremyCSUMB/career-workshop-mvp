@@ -92,8 +92,23 @@ function applyPrompt() {
 }
 
 function showScreen(name) {
-  Object.values(screens).forEach((s) => s.classList.remove('ws-screen--active'));
-  screens[name].classList.add('ws-screen--active');
+  const current = Object.values(screens).find((s) => s.classList.contains('ws-screen--active'));
+  const next = screens[name];
+
+  if (current && current !== next) {
+    current.classList.remove('ws-screen--active');
+    current.classList.add('ws-screen--exiting');
+    current.addEventListener('animationend', function handler() {
+      current.classList.remove('ws-screen--exiting');
+      current.removeEventListener('animationend', handler);
+    }, { once: true });
+    // Slight delay so exit starts before enter
+    setTimeout(() => next.classList.add('ws-screen--active'), 80);
+  } else {
+    Object.values(screens).forEach((s) => s.classList.remove('ws-screen--active'));
+    next.classList.add('ws-screen--active');
+  }
+
   state.phase = name;
   persist();
 
@@ -111,6 +126,8 @@ function showScreen(name) {
   if (name === 'complete') {
     loadCompleteProfiles();
   }
+
+  updateBottomNav(name);
 }
 
 function showError(el, msg) {
@@ -1217,9 +1234,64 @@ function switchSession() {
   showScreen('entry');
 }
 
+/* ============================================
+   Mobile Bottom Nav
+   ============================================ */
+
+function updateBottomNav(screenName) {
+  const nav = $('bottom-nav');
+  if (!nav) return;
+
+  // Show nav when user is in a session (not on entry/rooms)
+  if (['entry', 'rooms'].includes(screenName)) {
+    nav.classList.add('ws-hidden');
+    return;
+  }
+  nav.classList.remove('ws-hidden');
+
+  // Map screens to nav items
+  const navMap = { waiting: 'home', interview: 'interview', complete: 'profile' };
+  const activeNav = navMap[screenName] || 'home';
+
+  nav.querySelectorAll('.ws-bottom-nav__item').forEach((btn) => {
+    btn.classList.toggle('ws-bottom-nav__item--active', btn.dataset.nav === activeNav);
+  });
+}
+
+function initBottomNav() {
+  const nav = $('bottom-nav');
+  if (!nav) return;
+
+  nav.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ws-bottom-nav__item');
+    if (!btn) return;
+
+    const target = btn.dataset.nav;
+    if (target === 'home') {
+      // Go to waiting or rooms depending on state
+      if (state.students && state.students.length >= 2) {
+        showScreen('interview');
+      } else if (state.roomId) {
+        showScreen('waiting');
+      } else {
+        showScreen('rooms');
+      }
+    } else if (target === 'interview') {
+      if (state.phase === 'interview' || state.phase === 'waiting') {
+        showScreen(state.phase);
+      }
+    } else if (target === 'profile') {
+      if (state.phase === 'complete') {
+        showScreen('complete');
+      }
+    }
+  });
+}
+
 function init() {
   initTheme();
   initEntry();
+  initBottomNav();
 
   $('nudge-dismiss').addEventListener('click', dismissNudge);
   $('btn-leave-session').addEventListener('click', leaveSession);

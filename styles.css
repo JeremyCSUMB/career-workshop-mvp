@@ -344,13 +344,7 @@ body {
    Screens (mutually exclusive visibility)
    ============================================ */
 
-.ws-screen {
-  display: none;
-}
-
-.ws-screen--active {
-  display: block;
-}
+/* Base screen styles moved to Screen Transitions section below */
 
 /* ============================================
    Nudge Toast / Banner
@@ -1323,24 +1317,130 @@ body {
 }
 
 /* ============================================
+   Screen Transitions
+   ============================================ */
+
+.ws-screen {
+  display: none;
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.ws-screen--active {
+  display: block;
+  animation: ws-screen-enter 0.3s ease forwards;
+}
+
+.ws-screen--exiting {
+  display: block;
+  animation: ws-screen-exit 0.15s ease forwards;
+}
+
+@keyframes ws-screen-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ws-screen-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+/* ============================================
+   Mobile Bottom Nav
+   ============================================ */
+
+.ws-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .ws-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--ci-surface);
+    border-top: 1px solid var(--ci-border);
+    padding: 6px 8px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    gap: 4px;
+    justify-content: space-around;
+    box-shadow: 0 -2px 12px var(--ci-shadow-light);
+  }
+
+  .ws-bottom-nav__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    border: none;
+    background: none;
+    color: var(--ci-text-muted);
+    font-family: var(--ci-font);
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s;
+    min-width: 56px;
+  }
+
+  .ws-bottom-nav__item:hover {
+    background: var(--ci-accent-light);
+  }
+
+  .ws-bottom-nav__item--active {
+    color: var(--ci-accent);
+    background: var(--ci-accent-light);
+  }
+
+  .ws-bottom-nav__icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  /* Move theme toggle above bottom nav */
+  .ws-theme-toggle {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ============================================
    Responsive
    ============================================ */
 
 @media (max-width: 600px) {
   .ws-header {
-    padding: 18px 16px 12px;
+    padding: 14px 16px 10px;
   }
 
   .ws-header h1 {
-    font-size: 22px;
+    font-size: 20px;
+  }
+
+  .ws-header p {
+    font-size: 13px;
   }
 
   .ws-container {
-    padding: 0 16px 60px;
+    padding: 0 12px calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .ws-container--wide {
+    padding: 0 12px calc(80px + env(safe-area-inset-bottom, 0px));
   }
 
   .ws-card {
-    padding: 18px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .ws-card h2 {
+    font-size: 18px;
   }
 
   .ws-btn-row {
@@ -1355,25 +1455,63 @@ body {
   .ws-textarea {
     font-size: 16px; /* Prevents iOS zoom */
     padding: 12px;
+    min-height: 120px;
   }
 
   .ws-input {
     font-size: 16px;
+    padding: 10px 14px;
   }
 
   .ws-room-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .ws-room-card {
+    padding: 16px;
+  }
+
+  .ws-room-card__id {
+    font-size: 18px;
+  }
+
+  .ws-room-card__preview {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .ws-room-card__actions {
+    flex-wrap: wrap;
+  }
+
+  .ws-overview {
+    padding: 10px 12px;
   }
 
   .ws-overview__inner {
-    gap: 12px;
+    gap: 8px;
     justify-content: center;
+  }
+
+  .ws-overview__count {
+    font-size: 16px;
+  }
+
+  .ws-overview__divider {
+    height: 20px;
   }
 
   .ws-dot-strip {
     margin-left: 0;
     width: 100%;
     justify-content: center;
+  }
+
+  .ws-dot-strip__dot {
+    width: 10px;
+    height: 10px;
   }
 
   .ws-round-header {
@@ -1383,7 +1521,11 @@ body {
   }
 
   .ws-prompt-card {
-    padding: 16px 18px;
+    padding: 14px 16px;
+  }
+
+  .ws-prompt-card p {
+    font-size: 15px;
   }
 
   .ws-nudge-banner__inner {
@@ -1392,15 +1534,101 @@ body {
   }
 
   .ws-modal {
-    padding: 20px;
+    padding: 18px;
+    border-radius: var(--ci-radius);
   }
 
   .ws-modal-overlay {
-    padding: 12px;
+    padding: 10px;
+    align-items: flex-end;
+  }
+
+  .ws-modal h3 {
+    font-size: 16px;
+  }
+
+  .ws-nudge-suggestion {
+    font-size: 13px;
+    padding: 10px 14px;
   }
 
   .ws-add-tag-row {
     flex-direction: column;
+  }
+
+  .ws-session-card {
+    padding: 14px 16px;
+  }
+
+  .ws-session-card__top {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ws-session-card__code {
+    font-size: 16px;
+    align-self: flex-start;
+  }
+
+  .ws-session-card__actions {
+    width: 100%;
+  }
+
+  .ws-session-card__actions .ws-btn {
+    flex: 1;
+  }
+
+  .ws-dash-toolbar {
+    flex-direction: column;
+  }
+
+  .ws-storyteller-message {
+    padding: 24px 16px;
+  }
+
+  .ws-capability-tags {
+    gap: 6px;
+  }
+
+  .ws-capability-tag {
+    font-size: 13px;
+    padding: 5px 12px;
+  }
+
+  .ws-profile-card {
+    padding: 18px;
+    margin: 16px 0;
+  }
+
+  .ws-partner-names {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ws-leave-btn {
+    font-size: 12px;
+    padding: 5px 12px;
+  }
+
+  .ws-rooms-picker {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+  }
+
+  .ws-waiting {
+    padding: 32px 16px;
+  }
+
+  .ws-textarea-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .ws-followup-card {
+    padding: 12px 14px;
+    font-size: 14px;
   }
 }
 
@@ -1579,5 +1807,44 @@ body {
   }
   .ws-analytics-room-grid {
     grid-template-columns: 1fr;
+  }
+  .ws-analytics-sort-row {
+    flex-wrap: wrap;
+  }
+  .ws-analytics-legend {
+    gap: 10px;
+    font-size: 13px;
+  }
+  .ws-analytics-assessment {
+    font-size: 15px;
+  }
+  .ws-analytics-room-card {
+    padding: 12px;
+  }
+}
+
+/* ============================================
+   Dark Mode — Mobile Fixes
+   ============================================ */
+
+@media (max-width: 600px) {
+  [data-theme="dark"] .ws-bottom-nav {
+    box-shadow: 0 -2px 12px var(--ci-shadow-medium);
+  }
+
+  [data-theme="dark"] .ws-modal-overlay {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  [data-theme="dark"] .ws-room-card__preview {
+    background: var(--ci-surface);
+  }
+
+  [data-theme="dark"] .ws-overview {
+    box-shadow: 0 1px 8px var(--ci-shadow-medium);
+  }
+
+  [data-theme="dark"] .ws-nudge-banner__inner {
+    box-shadow: 0 4px 20px var(--ci-shadow-overlay);
   }
 }

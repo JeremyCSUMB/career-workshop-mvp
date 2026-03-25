@@ -45,13 +45,29 @@ const screens = {
 };
 
 function showScreen(name) {
-  Object.values(screens).forEach((s) => s.classList.remove('ws-screen--active'));
-  screens[name].classList.add('ws-screen--active');
+  const current = Object.values(screens).find((s) => s.classList.contains('ws-screen--active'));
+  const next = screens[name];
+
+  if (current && current !== next) {
+    current.classList.remove('ws-screen--active');
+    current.classList.add('ws-screen--exiting');
+    current.addEventListener('animationend', function handler() {
+      current.classList.remove('ws-screen--exiting');
+      current.removeEventListener('animationend', handler);
+    }, { once: true });
+    setTimeout(() => next.classList.add('ws-screen--active'), 80);
+  } else {
+    Object.values(screens).forEach((s) => s.classList.remove('ws-screen--active'));
+    next.classList.add('ws-screen--active');
+  }
+
   if (name === 'dashboard') {
     $('overview-bar').classList.remove('ws-hidden');
   } else {
     $('overview-bar').classList.add('ws-hidden');
   }
+
+  updateDashBottomNav(name);
 }
 
 function showError(el, msg) {
@@ -1310,11 +1326,59 @@ function tryResume() {
   }
 }
 
+/* ============================================
+   Mobile Bottom Nav
+   ============================================ */
+
+function updateDashBottomNav(screenName) {
+  const nav = $('bottom-nav');
+  if (!nav) return;
+
+  // Show nav when authenticated (not on login)
+  if (screenName === 'login') {
+    nav.classList.add('ws-hidden');
+    return;
+  }
+  nav.classList.remove('ws-hidden');
+
+  const navMap = { session: 'sessions', dashboard: 'monitor', analytics: 'analytics' };
+  const activeNav = navMap[screenName] || 'sessions';
+
+  nav.querySelectorAll('.ws-bottom-nav__item').forEach((btn) => {
+    btn.classList.toggle('ws-bottom-nav__item--active', btn.dataset.nav === activeNav);
+  });
+}
+
+function initDashBottomNav() {
+  const nav = $('bottom-nav');
+  if (!nav) return;
+
+  nav.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ws-bottom-nav__item');
+    if (!btn) return;
+
+    const target = btn.dataset.nav;
+    if (target === 'sessions') {
+      showScreen('session');
+      loadSessions();
+    } else if (target === 'monitor') {
+      if (state.sessionId) {
+        showScreen('dashboard');
+      }
+    } else if (target === 'analytics') {
+      if (analyticsSessionId && analyticsCache[analyticsSessionId]) {
+        showScreen('analytics');
+      }
+    }
+  });
+}
+
 function init() {
   initTheme();
   initLogin();
   initSession();
   initNudgeModal();
+  initDashBottomNav();
 
   $('btn-back-sessions').addEventListener('click', () => {
     stopMonitoring();
