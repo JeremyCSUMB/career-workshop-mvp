@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Workshop Dashboard</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -183,6 +183,22 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile bottom nav -->
+  <nav id="bottom-nav" class="ws-bottom-nav ws-hidden">
+    <button class="ws-bottom-nav__item" data-nav="sessions" aria-label="Sessions">
+      <span class="ws-bottom-nav__icon">&#9776;</span>
+      <span>Sessions</span>
+    </button>
+    <button class="ws-bottom-nav__item" data-nav="monitor" aria-label="Monitor">
+      <span class="ws-bottom-nav__icon">&#9673;</span>
+      <span>Monitor</span>
+    </button>
+    <button class="ws-bottom-nav__item" data-nav="analytics" aria-label="Analytics">
+      <span class="ws-bottom-nav__icon">&#9670;</span>
+      <span>Analytics</span>
+    </button>
+  </nav>
 
   <!-- Theme toggle -->
   <button id="theme-toggle" class="ws-theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"></button>
