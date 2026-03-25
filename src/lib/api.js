@@ -8,9 +8,8 @@ export async function api(endpoint, opts = {}) {
 		? `${CFG.api_base}/${endpoint}?${new URLSearchParams(opts.params)}`
 		: `${CFG.api_base}/${endpoint}`;
 
-	const fetchOpts = { method: opts.method || 'GET' };
+	const fetchOpts = { method: opts.method || (opts.body ? 'POST' : 'GET') };
 	if (opts.body) {
-		fetchOpts.method = 'POST';
 		fetchOpts.headers = { 'Content-Type': 'application/json' };
 		fetchOpts.body = JSON.stringify(opts.body);
 	}
