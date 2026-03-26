@@ -8,6 +8,7 @@
 	import AnalyticsScreen from '$lib/components/dashboard/AnalyticsScreen.svelte';
 	import GuideScreen from '$lib/components/dashboard/GuideScreen.svelte';
 	import GuideChatBubble from '$lib/components/dashboard/GuideChatBubble.svelte';
+	import ProjectorScreen from '$lib/components/dashboard/ProjectorScreen.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 
 	let screen = $state('login'); // login | session | dashboard | analytics | guide
@@ -16,6 +17,8 @@
 	let analyticsSessionName = $state('');
 	let subtitle = $state('Facilitator view');
 	let showWelcomeBanner = $state(false);
+	let projectorSessionId = $state('');
+	let projectorSessionName = $state('');
 
 	// Bottom nav items
 	let navItems = $derived(
@@ -92,6 +95,16 @@
 		screen = 'session';
 	}
 
+	function handleProjector(sid, name) {
+		projectorSessionId = sid;
+		projectorSessionName = name || '';
+	}
+
+	function closeProjector() {
+		projectorSessionId = '';
+		projectorSessionName = '';
+	}
+
 	function dismissBanner() {
 		showWelcomeBanner = false;
 	}
@@ -150,9 +163,9 @@
 			{#if screen === 'login'}
 				<LoginScreen onLogin={handleLogin} />
 			{:else if screen === 'session'}
-				<SessionScreen onMonitor={handleMonitor} onAnalytics={handleAnalytics} />
+				<SessionScreen onMonitor={handleMonitor} onAnalytics={handleAnalytics} onProjector={handleProjector} />
 			{:else if screen === 'dashboard'}
-				<MonitorScreen {sessionId} onBackToSessions={handleBackToSessions} />
+				<MonitorScreen {sessionId} onBackToSessions={handleBackToSessions} onProjector={handleProjector} />
 			{:else if screen === 'analytics'}
 				<AnalyticsScreen sessionId={analyticsSessionId} sessionName={analyticsSessionName} onBack={handleBackToSessions} />
 			{:else if screen === 'guide'}
@@ -161,6 +174,10 @@
 		</div>
 	{/key}
 </main>
+
+{#if projectorSessionId}
+	<ProjectorScreen sessionId={projectorSessionId} sessionName={projectorSessionName} onClose={closeProjector} />
+{/if}
 
 {#if isLoggedIn}
 	<GuideChatBubble />

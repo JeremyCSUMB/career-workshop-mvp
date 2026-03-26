@@ -1,7 +1,7 @@
 <script>
 	import { api } from '$lib/api.js';
 
-	let { session, isEnded = false, onMonitor, onAnalytics } = $props();
+	let { session, isEnded = false, onMonitor, onAnalytics, onProjector } = $props();
 
 	function relativeTime(isoOrMs) {
 		if (!isoOrMs) return '\u2014';
@@ -94,6 +94,7 @@
 	<div class="ws-session-card__actions">
 		{#if !isEnded}
 			<button class="ws-btn ws-btn--small" onclick={() => onMonitor(session.id)}>Monitor</button>
+			<button class="ws-btn ws-btn--small ws-btn--secondary" onclick={() => onProjector(session.id, session.name)}>Present</button>
 			<button class="ws-btn ws-btn--small ws-btn--secondary" onclick={copyJoinLink}>{copyText}</button>
 		{/if}
 		{#if isEnded}

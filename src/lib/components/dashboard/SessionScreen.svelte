@@ -3,7 +3,7 @@
 	import { api } from '$lib/api.js';
 	import SessionCard from './SessionCard.svelte';
 
-	let { onMonitor, onAnalytics } = $props();
+	let { onMonitor, onAnalytics, onProjector } = $props();
 
 	const DEFAULT_PROMPT = "Tell your partner about a time you had to figure something out where there wasn't a clear answer. Any context \u2014 work, school, personal. Don't pick the most impressive story. Pick what comes to mind first. 3-4 minutes.";
 
@@ -145,7 +145,7 @@
 		</div>
 	{:else}
 		{#each liveSessions as s (s.id)}
-			<SessionCard session={s} {onMonitor} {onAnalytics} />
+			<SessionCard session={s} {onMonitor} {onAnalytics} {onProjector} />
 		{/each}
 	{/if}
 
@@ -161,7 +161,7 @@
 			</button>
 			{#if previousExpanded}
 				{#each endedSessions as s (s.id)}
-					<SessionCard session={s} isEnded={true} {onMonitor} {onAnalytics} />
+					<SessionCard session={s} isEnded={true} {onMonitor} {onAnalytics} {onProjector} />
 				{/each}
 			{/if}
 		</div>
