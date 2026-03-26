@@ -217,6 +217,7 @@
 		stopAllPolling();
 		const savedName = $interviewState.studentName;
 		interviewState.reset();
+		codeFromUrl = false;
 		interviewState.update((s) => ({ ...s, studentName: savedName }));
 		if (savedName) localStorage.setItem('ws_studentName', savedName);
 		goToScreen('entry');
@@ -225,6 +226,7 @@
 	function handleLeave() {
 		stopAllPolling();
 		interviewState.reset();
+		codeFromUrl = false;
 		goToScreen('entry');
 	}
 
