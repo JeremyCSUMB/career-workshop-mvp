@@ -6,13 +6,16 @@
 	import SessionScreen from '$lib/components/dashboard/SessionScreen.svelte';
 	import MonitorScreen from '$lib/components/dashboard/MonitorScreen.svelte';
 	import AnalyticsScreen from '$lib/components/dashboard/AnalyticsScreen.svelte';
+	import GuideScreen from '$lib/components/dashboard/GuideScreen.svelte';
+	import GuideChatBubble from '$lib/components/dashboard/GuideChatBubble.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 
-	let screen = $state('login'); // login | session | dashboard | analytics
+	let screen = $state('login'); // login | session | dashboard | analytics | guide
 	let sessionId = $state('');
 	let analyticsSessionId = $state('');
 	let analyticsSessionName = $state('');
 	let subtitle = $state('Facilitator view');
+	let showWelcomeBanner = $state(false);
 
 	// Bottom nav items
 	let navItems = $derived(
@@ -21,14 +24,16 @@
 			: [
 					{ id: 'sessions', label: 'Sessions', icon: '\u2630', onclick: () => navTo('sessions') },
 					{ id: 'monitor', label: 'Monitor', icon: '\u25C9', onclick: () => navTo('monitor') },
-					{ id: 'analytics', label: 'Analytics', icon: '\u25C6', onclick: () => navTo('analytics') }
+					{ id: 'analytics', label: 'Analytics', icon: '\u25C6', onclick: () => navTo('analytics') },
+					{ id: 'guide', label: 'Guide', icon: '?', onclick: () => navTo('guide') }
 				]
 	);
 
 	let activeNav = $derived(
 		screen === 'session' ? 'sessions' :
 		screen === 'dashboard' ? 'monitor' :
-		screen === 'analytics' ? 'analytics' : 'sessions'
+		screen === 'analytics' ? 'analytics' :
+		screen === 'guide' ? 'guide' : 'sessions'
 	);
 
 	function navTo(target) {
@@ -38,6 +43,8 @@
 			screen = 'dashboard';
 		} else if (target === 'analytics' && analyticsSessionId) {
 			screen = 'analytics';
+		} else if (target === 'guide') {
+			screen = 'guide';
 		}
 	}
 
@@ -48,6 +55,10 @@
 
 	function handleLogin() {
 		if (browser) sessionStorage.setItem('ws_dash_auth', 'true');
+		// Check if this is a first-time user
+		if (browser && !localStorage.getItem('ws_guide_completed')) {
+			showWelcomeBanner = true;
+		}
 		screen = 'session';
 	}
 
@@ -77,6 +88,21 @@
 		navigator.clipboard.writeText(link);
 	}
 
+	function handleGuideComplete() {
+		screen = 'session';
+	}
+
+	function dismissBanner() {
+		showWelcomeBanner = false;
+	}
+
+	function goToGuide() {
+		showWelcomeBanner = false;
+		screen = 'guide';
+	}
+
+	let isLoggedIn = $derived(screen !== 'login');
+
 	onMount(() => {
 		const wasAuth = sessionStorage.getItem('ws_dash_auth') === 'true';
 		const savedSession = sessionStorage.getItem('ws_dash_sessionId');
@@ -87,6 +113,9 @@
 			screen = 'dashboard';
 		} else if (wasAuth) {
 			screen = 'session';
+			if (!localStorage.getItem('ws_guide_completed')) {
+				showWelcomeBanner = true;
+			}
 		}
 	});
 </script>
@@ -107,6 +136,15 @@
 </header>
 
 <main class="ws-container ws-container--wide">
+	<!-- Welcome banner for first-time users -->
+	{#if showWelcomeBanner && screen === 'session'}
+		<div class="ws-guide__welcome-banner" in:fly={{ y: -8, duration: 250 }}>
+			<span>New here? Take a quick interactive tour to learn how the dashboard works.</span>
+			<button class="ws-btn ws-btn--small" onclick={goToGuide}>Open Guide</button>
+			<button class="ws-guide__welcome-dismiss" onclick={dismissBanner} aria-label="Dismiss">&times;</button>
+		</div>
+	{/if}
+
 	{#key screen}
 		<div in:fly={{ y: 4, duration: 250 }} out:fade={{ duration: 150 }}>
 			{#if screen === 'login'}
@@ -117,9 +155,15 @@
 				<MonitorScreen {sessionId} onBackToSessions={handleBackToSessions} />
 			{:else if screen === 'analytics'}
 				<AnalyticsScreen sessionId={analyticsSessionId} sessionName={analyticsSessionName} onBack={handleBackToSessions} />
+			{:else if screen === 'guide'}
+				<GuideScreen onComplete={handleGuideComplete} />
 			{/if}
 		</div>
 	{/key}
 </main>
+
+{#if isLoggedIn}
+	<GuideChatBubble />
+{/if}
 
 <BottomNav items={navItems} active={activeNav} />
