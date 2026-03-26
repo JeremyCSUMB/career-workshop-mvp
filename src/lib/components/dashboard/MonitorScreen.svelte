@@ -9,6 +9,7 @@
 	let { sessionId, onBackToSessions } = $props();
 
 	let rooms = $state([]);
+	let totalRounds = $state(0);
 	let lastPulse = {};
 	let dirtyRooms = new Set();
 	let lastClassifyTimestamps = {};
@@ -82,6 +83,7 @@
 			const data = await api('workshop-rooms', { params: { sessionId } });
 			const fetched = data.rooms || data || [];
 			const arr = Array.isArray(fetched) ? fetched : [];
+			if (data.rounds) totalRounds = data.rounds;
 			arr.forEach(enrichRoom);
 
 			// Seed pulse cache
@@ -280,7 +282,7 @@
 
 <div class="ws-room-grid">
 	{#each sortedRooms as room (room.id)}
-		<RoomCard {room} onNudge={openNudge} />
+		<RoomCard {room} {totalRounds} onNudge={openNudge} />
 	{/each}
 </div>
 

@@ -1,5 +1,5 @@
 <script>
-	let { room, onNudge } = $props();
+	let { room, totalRounds = 0, onNudge } = $props();
 
 	let roomId = $derived(room.id || '?');
 	let studentNames = $derived(room._studentNames || []);
@@ -31,8 +31,10 @@
 		'ws-room-card__status--grey'
 	);
 
+	let isComplete = $derived(totalRounds > 0 && round > totalRounds);
 	let questionNum = $derived(Math.ceil(round / 2));
 	let turnNum = $derived(((round - 1) % 2) + 1);
+	let totalQuestions = $derived(Math.ceil(totalRounds / 2));
 
 	let isActive = $derived.by(() => {
 		if (!lastInput) return false;
@@ -100,6 +102,10 @@
 	<div class="ws-room-card__students">
 		{#if studentNames.length === 0}
 			<em style="color:var(--ci-text-muted);">No students yet</em>
+		{:else if isComplete}
+			{#each studentNames as name}
+				<strong>{name}</strong>{' '}
+			{/each}
 		{:else if interviewerName}
 			<strong>{interviewerName}</strong> interviewing <strong>{storytellerName}</strong>
 		{:else}
@@ -109,7 +115,7 @@
 		{/if}
 	</div>
 	<div class="ws-room-card__meta">
-		<span class="ws-room-card__meta-item">Q{questionNum} · Turn {turnNum}</span>
+		<span class="ws-room-card__meta-item">{isComplete ? `Complete (${totalQuestions} Q)` : `Q${questionNum} · Turn ${turnNum}`}</span>
 		{#if elapsed}
 			<span class="ws-room-card__meta-item">{elapsed}</span>
 		{/if}
