@@ -82,6 +82,7 @@
 					sessionId: $interviewState.sessionId,
 					roomId,
 					studentName: $interviewState.studentName,
+					aboutStudent: partnerName,
 					notes: text.trim(),
 					round: roundLabel
 				}
@@ -106,6 +107,7 @@
 					sessionId: $interviewState.sessionId,
 					roomId,
 					studentName: $interviewState.studentName,
+					aboutStudent: partnerName,
 					notes: notesText.trim(),
 					round: `round${round}-notes`
 				}
@@ -154,6 +156,7 @@
 					sessionId: $interviewState.sessionId,
 					roomId,
 					studentName: $interviewState.studentName,
+					aboutStudent: partnerName,
 					notes: followupText.trim(),
 					round: `round${round}-followup`
 				}
