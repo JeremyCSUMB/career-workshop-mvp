@@ -3,8 +3,8 @@
 A peer interview tool for career development workshops. Students pair up in breakout rooms — one tells a story, the other captures notes — and AI generates follow-up questions and capability profiles. A facilitator monitors all rooms from a live dashboard with Red/Yellow/Green status classification and can send nudge prompts to rooms that need help.
 
 **Live URLs:**
-- Student form: https://career-workshop-mvp.netlify.app/interview.html
-- Facilitator dashboard: https://career-workshop-mvp.netlify.app/dashboard.html
+- Student interview: https://career-workshop-mvp.netlify.app/interview
+- Facilitator dashboard: https://career-workshop-mvp.netlify.app/dashboard
 
 ---
 
@@ -34,7 +34,7 @@ Each student does both roles: interviewer in one round, storyteller in the other
 
 #### 1. Create a Session
 
-1. Go to the **Dashboard** at `/dashboard.html`
+1. Go to the **Dashboard** at `/dashboard`
 2. Enter the dashboard password
 3. Under "Create New Session", enter:
    - **Session Name** — e.g., "CST395 Week 10"
@@ -56,7 +56,7 @@ Once students start joining, the dashboard shows:
   - Preview of latest notes (click to expand)
   - AI classification reasoning
 
-The dashboard auto-refreshes every **15 seconds**.
+The dashboard auto-refreshes every **15 seconds** with lightweight pulse checks every **2 seconds**.
 
 #### 3. Understanding Status Colors
 
@@ -75,7 +75,11 @@ Classification uses a **hybrid approach**: simple heuristics catch obvious Red c
    - *"Translate what your partner DID into what an employer would value. Not 'good communicator' but 'de-escalated a customer conflict without manager support.'"*
    - *"Ask your partner: what was the hardest part of that situation? What did you try first?"*
    - *"Try to get more specific — names, timelines, outcomes."*
-3. Click **Send Nudge** — it appears as a banner on the students' screen within 12 seconds
+3. Click **Send Nudge** — it appears as a banner on the students' screen within 8 seconds
+
+#### 5. Analytics
+
+After a session ends, view the **Analytics** tab for post-session insights including participation metrics and AI-driven analysis.
 
 ---
 
@@ -83,12 +87,9 @@ Classification uses a **hybrid approach**: simple heuristics catch obvious Red c
 
 #### 1. Join Your Room
 
-1. Go to the **Interview Form** at `/interview.html`
-2. Enter:
-   - **Session Code** — the code your facilitator shared
-   - **Room Number** — your assigned room
-   - **Your Name** — first and last
-3. Click **Join Room**
+1. Go to the **Interview Page** at `/interview`
+2. Enter your **Session Code** and **Name**
+3. Pick an available room from the room picker
 4. Wait for your partner to join (the page polls automatically)
 
 #### 2. Round 1 — Interview
@@ -97,7 +98,7 @@ Roles are assigned automatically (alphabetical by name — first name alphabetic
 
 **If you're the interviewer:**
 
-1. Your partner tells their story based on the prompt: *"Tell your partner about a time you had to figure something out where there wasn't a clear answer."*
+1. Your partner tells their story based on the prompt displayed on screen
 2. Capture notes in the textarea — write down what they did, how they approached it, what happened
 3. Click **Submit Notes**
 4. AI generates 2-3 follow-up questions — ask your partner these to dig deeper
@@ -122,7 +123,7 @@ If the facilitator sends a nudge, it appears as a banner at the top of your scre
 
 #### 5. Notes Auto-Save
 
-Your notes auto-save 5 seconds after you stop typing, so you won't lose work if you accidentally close the tab. Your session also persists in localStorage — refreshing the page resumes where you left off.
+Your notes auto-save after you stop typing, so you won't lose work if you accidentally close the tab. Your session also persists in localStorage — refreshing the page resumes where you left off.
 
 ---
 
@@ -130,36 +131,72 @@ Your notes auto-save 5 seconds after you stop typing, so you won't lose work if 
 
 ### Stack
 
-- **Frontend:** Vanilla HTML/CSS/JS (ES modules, no framework)
-- **Backend:** Netlify Functions v1 (Lambda-compatible, CommonJS)
-- **Storage:** Netlify Blobs (key-value JSON store)
-- **AI:** Claude Sonnet 4.6 via Anthropic API (direct calls from backend functions)
-- **Hosting:** Netlify (static files + serverless functions)
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | SvelteKit 2 / Svelte 5 |
+| **Build** | Vite 8 |
+| **Backend** | Netlify Functions (Lambda-compatible, CommonJS) |
+| **Storage** | Netlify Blobs (key-value JSON store) |
+| **AI** | Claude Sonnet 4.6 via Anthropic API |
+| **Hosting** | Netlify (SvelteKit SSR adapter + serverless functions) |
+| **Node** | >= 18.0.0 |
 
 ### File Structure
 
 ```
 career-workshop-mvp/
-├── interview.html          # Student interview form
-├── interview.js            # Interview flow logic (join, wait, rounds, profiles)
-├── dashboard.html          # Facilitator dashboard
-├── dashboard.js            # Dashboard logic (polling, classification, nudges)
-├── config.js               # Shared constants (intervals, API base, password)
-├── styles.css              # Full standalone CSS (CI design language)
-├── netlify.toml            # Netlify config (publish dir, functions dir, CORS)
-├── package.json            # Dependencies (@netlify/blobs)
-└── netlify/functions/
-    ├── workshop-session.js          # POST: create session / GET: list sessions
-    ├── workshop-join.js             # POST: student joins a room
-    ├── workshop-submit.js           # POST: submit interviewer notes
-    ├── workshop-heartbeat.js        # POST: heartbeat (every 15s)
-    ├── workshop-rooms.js            # GET: all rooms for a session
-    ├── workshop-room.js             # GET: single room detail
-    ├── workshop-classify.js         # POST: classify room (heuristic + AI)
-    ├── workshop-classify-inactive.js # GET: flag rooms with no heartbeat >90s
-    ├── workshop-nudge.js            # POST: send nudge / GET: poll unread nudges
-    ├── workshop-followup.js         # POST: AI generates follow-up questions
-    └── workshop-profile.js          # POST: AI generates capability profile
+├── src/
+│   ├── lib/
+│   │   ├── api.js                       # Shared fetch helper
+│   │   ├── config.js                    # Constants (intervals, API base, password)
+│   │   ├── stores/
+│   │   │   ├── interview.js             # Interview state (persistent via localStorage)
+│   │   │   ├── dashboard.js             # Dashboard state
+│   │   │   └── theme.js                 # Theme management
+│   │   └── components/
+│   │       ├── interview/
+│   │       │   ├── EntryScreen.svelte   # Session code + name entry
+│   │       │   ├── RoomPicker.svelte    # Choose available room
+│   │       │   ├── WaitingScreen.svelte # Wait for partner
+│   │       │   ├── InterviewScreen.svelte # Notes, follow-ups, profiles
+│   │       │   └── CompleteScreen.svelte  # Session complete
+│   │       └── dashboard/
+│   │           ├── LoginScreen.svelte   # Password auth
+│   │           ├── SessionScreen.svelte # Create/list sessions
+│   │           ├── MonitorScreen.svelte # Live room monitoring
+│   │           ├── AnalyticsScreen.svelte # Post-session analytics
+│   │           ├── RoomCard.svelte      # Individual room status card
+│   │           ├── OverviewBar.svelte   # Aggregate status bar
+│   │           ├── NudgeModal.svelte    # Send nudge dialog
+│   │           └── SessionCard.svelte   # Session list item
+│   └── routes/
+│       ├── +page.svelte                 # Root redirect
+│       ├── interview/+page.svelte       # Student interview page
+│       └── dashboard/+page.svelte       # Facilitator dashboard page
+├── netlify/
+│   └── functions/
+│       ├── lib/anthropic.js             # Claude AI wrapper
+│       ├── workshop-session.js          # POST: create / GET: list / DELETE: end session
+│       ├── workshop-join.js             # POST: student joins a room
+│       ├── workshop-leave.js            # POST: student leaves a room
+│       ├── workshop-submit.js           # POST: submit interviewer notes
+│       ├── workshop-heartbeat.js        # POST: heartbeat (every 15s)
+│       ├── workshop-rooms.js            # GET: all rooms for a session
+│       ├── workshop-room.js             # GET: single room detail
+│       ├── workshop-pulse.js            # GET: lightweight room summaries
+│       ├── workshop-classify.js         # POST: classify room (heuristic + AI)
+│       ├── workshop-classify-inactive.js # GET: flag rooms with no heartbeat >90s
+│       ├── workshop-nudge.js            # POST: send nudge / GET: poll unread nudges
+│       ├── workshop-followup.js         # POST: AI generates follow-up questions
+│       ├── workshop-profile.js          # POST: AI generates capability profile
+│       └── workshop-analytics.js        # GET: post-session analytics
+├── test/
+│   └── simulate-workshop.js            # Full workflow integration test
+├── styles.css                           # Global CSS design system
+├── svelte.config.js                     # SvelteKit config (Netlify adapter)
+├── vite.config.js                       # Vite bundler config
+├── netlify.toml                         # Netlify deployment config
+└── package.json                         # Dependencies and scripts
 ```
 
 ### Data Model (Netlify Blobs)
@@ -172,7 +209,12 @@ All data lives in a single Blobs store called `workshop` with composite keys:
   "id": "a1b2c3",
   "name": "CST395 Week 10",
   "created": "2026-03-20T10:00:00Z",
-  "roomCount": 12
+  "roomCount": 12,
+  "rounds": 2,
+  "questions": 1,
+  "prompts": ["Tell your partner about a time you had to figure something out..."],
+  "ended": false,
+  "endedAt": null
 }
 ```
 
@@ -199,14 +241,19 @@ All data lives in a single Blobs store called `workshop` with composite keys:
   "aiFollowUps": [
     { "questions": ["What was the hardest part?", "..."], "timestamp": "..." }
   ],
-  "capabilityProfile": {
-    "capabilities": [
-      { "capability": "Independent problem-solving under ambiguity", "evidence": "..." }
-    ],
-    "summary": "..."
-  },
+  "capabilityProfiles": [
+    {
+      "studentName": "Bob Jones",
+      "round": 1,
+      "capabilities": [
+        { "capability": "Independent problem-solving under ambiguity", "evidence": "..." }
+      ],
+      "summary": "...",
+      "generatedAt": "..."
+    }
+  ],
   "classifications": [
-    { "status": "green", "reasoning": "...", "method": "ai", "timestamp": "..." }
+    { "status": "green", "reasoning": "...", "method": "ai", "timestamp": "...", "suggestedNudge": null }
   ],
   "nudges": [
     { "message": "Try to get more specific...", "timestamp": "...", "read": false }
@@ -220,42 +267,48 @@ All endpoints are at `/.netlify/functions/`:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `workshop-session` | POST | Create session: `{ name, roomCount }` |
+| `workshop-session` | POST | Create session: `{ name, roomCount, rounds?, questions?, prompts? }` |
 | `workshop-session` | GET | List all sessions |
+| `workshop-session` | DELETE | End session: `{ sessionId }` |
 | `workshop-join` | POST | Join room: `{ sessionId, roomId, studentName }` |
+| `workshop-leave` | POST | Leave room: `{ sessionId, roomId, studentName }` |
 | `workshop-submit` | POST | Submit notes: `{ sessionId, roomId, studentName, notes, round }` |
 | `workshop-heartbeat` | POST | Heartbeat: `{ sessionId, roomId }` |
 | `workshop-rooms` | GET | All rooms: `?sessionId=xxx` |
 | `workshop-room` | GET | Single room: `?sessionId=xxx&roomId=yyy` |
+| `workshop-pulse` | GET | Lightweight room summaries: `?sessionId=xxx` |
 | `workshop-classify` | POST | Classify room: `{ sessionId, roomId }` |
 | `workshop-classify-inactive` | GET | Check inactivity: `?sessionId=xxx` |
 | `workshop-nudge` | POST | Send nudge: `{ sessionId, roomId, message }` |
 | `workshop-nudge` | GET | Poll nudges: `?sessionId=xxx&roomId=yyy` |
 | `workshop-followup` | POST | AI follow-ups: `{ sessionId, roomId, notes }` |
 | `workshop-profile` | POST | Capability profile: `{ sessionId, roomId, studentName, round }` |
+| `workshop-analytics` | GET | Session analytics: `?sessionId=xxx` |
 
-### AI Prompts
+### AI Integration
 
-Three AI functions, all using Claude Sonnet 4.6:
+Three AI functions, all using Claude Sonnet 4.6 via a shared wrapper (`netlify/functions/lib/anthropic.js`):
 
-1. **Follow-up question generator** (`workshop-followup.js`) — Given interviewer notes, generates 2-3 questions that surface specific capabilities, decisions, and outcomes. Pushes beyond surface-level.
+1. **Follow-up question generator** (`workshop-followup.js`) — Given interviewer notes, generates 2-3 questions that surface specific capabilities, decisions, and outcomes.
 
 2. **Conversation classifier** (`workshop-classify.js`) — Hybrid approach:
    - Heuristic first: word count <15 or inactive >3min → Red; word count <50 or ≤1 submission → Yellow
    - AI fallback: sends notes to Claude for nuanced Yellow/Green classification with reasoning
 
-3. **Capability profiler** (`workshop-profile.js`) — Translates interview notes into employer-relevant strengths. Returns structured capabilities with evidence (e.g., "de-escalated customer conflict independently" not "good communicator").
+3. **Capability profiler** (`workshop-profile.js`) — Translates interview notes into employer-relevant strengths with evidence (e.g., "de-escalated customer conflict independently" not "good communicator").
 
-### Polling & Data Push Strategy
+### Polling Strategy
 
-| What | Interval | Purpose |
-|------|----------|---------|
-| Heartbeat | Every 15s | Student → backend. Keeps room "alive" for inactivity detection |
-| Nudge poll | Every 12s | Student ← backend. Checks for new facilitator nudges |
-| Dashboard refresh | Every 15s | Dashboard ← backend. Fetches all room states |
-| Inactivity check | Every 30s | Dashboard → backend. Flags rooms with no heartbeat >90s |
-| Auto-save notes | 5s debounce | Student → backend. Saves notes after typing stops |
-| Explicit submit | On click | Student → backend. Submit Notes, Submit Follow-ups buttons |
+| What | Interval | Direction | Purpose |
+|------|----------|-----------|---------|
+| Heartbeat | 15s | Student → backend | Keeps room "alive" for inactivity detection |
+| Nudge poll | 8s | Student ← backend | Checks for new facilitator nudges |
+| Storyteller poll | 5s | Student ← backend | Detects round transitions |
+| Pulse check | 2s | Dashboard ← backend | Lightweight status updates |
+| Full refresh | 15s | Dashboard ← backend | Complete room data |
+| Classification | 12s | Dashboard → backend | Classify rooms (heuristic + AI) |
+| Inactivity check | 30s | Dashboard → backend | Flags rooms with no heartbeat >90s |
+| Auto-save notes | 1.5s debounce | Student → backend | Saves notes after typing stops |
 
 ### Role Assignment
 
@@ -263,7 +316,7 @@ Roles are determined by alphabetical sort of student names:
 - **Round 1:** First alphabetically = interviewer
 - **Round 2:** Roles swap
 
-This is computed client-side in both `interview.js` and `dashboard.js` to ensure consistency.
+This is computed client-side in both interview and dashboard stores to ensure consistency.
 
 ### Round Advancement
 
@@ -314,7 +367,21 @@ npm install
 npx netlify dev
 ```
 
-This starts a local server at `http://localhost:8888` with functions and Blobs emulation.
+This starts a local server at `http://localhost:8888` with SvelteKit dev server proxied through Netlify for functions and Blobs emulation.
+
+### Testing
+
+A full workflow integration test is available:
+
+```bash
+# Start the dev server first
+npx netlify dev
+
+# In another terminal, run the test
+node test/simulate-workshop.js [http://localhost:8888]
+```
+
+The test simulates a complete workshop: session creation, student joins, heartbeats, note submissions, AI follow-ups, classification, nudges, capability profiles, round advancement, and analytics.
 
 ---
 
@@ -335,3 +402,4 @@ npx netlify deploy --prod
 - The `NETLIFY_PAT` has broad access to your Netlify account. For production, scope it down or use a service-level token.
 - Student names are stored in Netlify Blobs with no encryption. For production, consider PII handling requirements.
 - CORS is set to `*` for all function endpoints. For production, restrict to your domain.
+- No rate limiting on API endpoints. For production, add rate limiting to prevent abuse.
