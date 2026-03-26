@@ -47,6 +47,15 @@ exports.handler = async (event) => {
   const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
 
   try {
+    // Check if session has ended
+    const session = await store.get(`session:${sessionId}`, { type: 'json' });
+    if (!session) {
+      return json(404, { error: 'Session not found' });
+    }
+    if (session.ended) {
+      return json(403, { error: 'This session has ended' });
+    }
+
     const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
     if (!room) {
       return json(404, { error: 'Room not found' });

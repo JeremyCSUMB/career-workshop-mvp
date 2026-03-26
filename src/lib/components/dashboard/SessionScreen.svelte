@@ -3,7 +3,7 @@
 	import { api } from '$lib/api.js';
 	import SessionCard from './SessionCard.svelte';
 
-	let { onMonitor, onAnalytics } = $props();
+	let { onMonitor, onAnalytics, onProjector } = $props();
 
 	const DEFAULT_PROMPT = "Tell your partner about a time you had to figure something out where there wasn't a clear answer. Any context \u2014 work, school, personal. Don't pick the most impressive story. Pick what comes to mind first. 3-4 minutes.";
 
@@ -17,6 +17,7 @@
 	let liveSessions = $state([]);
 	let endedSessions = $state([]);
 	let loading = $state(true);
+	let previousExpanded = $state(false);
 
 	$effect(() => {
 		const count = Math.max(1, Math.min(10, questionCount || 1));
@@ -100,20 +101,26 @@
 			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question is a full cycle &mdash; both partners take turns interviewing and sharing.</div>
 		</div>
 		<div class="ws-field">
-			<label class="ws-label">Question Prompts <span style="font-weight:400;color:var(--ci-text-muted);">(edit to customize)</span></label>
-			{#each prompts as prompt, idx}
-				<div style="margin-bottom:12px;">
-					<label class="ws-label" style="font-size:13px;margin-bottom:4px;">Question {idx + 1}</label>
-					<textarea
-						class="ws-textarea"
-						style="min-height:60px;"
-						placeholder="Leave blank to use the default prompt"
-						value={prompt}
-						oninput={(e) => updatePrompt(idx, e.target.value)}
-					></textarea>
-				</div>
-			{/each}
-			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question shows the same prompt for both turns. Edit any prompt or leave as default.</div>
+			<label class="ws-label">Question Prompts</label>
+			<div class="ws-prompt-list">
+				{#each prompts as prompt, idx}
+					<div class="ws-prompt-editor">
+						<div class="ws-prompt-editor__header">
+							<span class="ws-prompt-editor__label">Question {idx + 1}</span>
+							{#if prompt !== DEFAULT_PROMPT}
+								<button class="ws-prompt-editor__reset" onclick={() => updatePrompt(idx, DEFAULT_PROMPT)}>Reset to default</button>
+							{/if}
+						</div>
+						<textarea
+							class="ws-prompt-editor__input"
+							placeholder="Leave blank to use the default prompt"
+							value={prompt}
+							oninput={(e) => updatePrompt(idx, e.target.value)}
+						></textarea>
+					</div>
+				{/each}
+			</div>
+			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:8px;">Each question shows the same prompt for both turns. Edit any prompt or leave as default.</div>
 		</div>
 		{#if createError}
 			<div class="ws-error">{createError}</div>
@@ -138,16 +145,25 @@
 		</div>
 	{:else}
 		{#each liveSessions as s (s.id)}
-			<SessionCard session={s} {onMonitor} {onAnalytics} />
+			<SessionCard session={s} {onMonitor} {onAnalytics} {onProjector} />
 		{/each}
 	{/if}
 
 	{#if endedSessions.length > 0}
 		<div style="margin-top:32px;">
-			<h2 style="font-size:18px;margin:0 0 12px;color:var(--ci-text-muted);">Previous Sessions</h2>
-			{#each endedSessions as s (s.id)}
-				<SessionCard session={s} isEnded={true} {onMonitor} {onAnalytics} />
-			{/each}
+			<button
+				class="ws-collapse-toggle"
+				onclick={() => previousExpanded = !previousExpanded}
+				aria-expanded={previousExpanded}
+			>
+				<h2 style="font-size:18px;margin:0;color:var(--ci-text-muted);">Previous Sessions ({endedSessions.length})</h2>
+				<span class="ws-collapse-toggle__chevron" class:ws-collapse-toggle__chevron--open={previousExpanded}>{'\u25BC'}</span>
+			</button>
+			{#if previousExpanded}
+				{#each endedSessions as s (s.id)}
+					<SessionCard session={s} isEnded={true} {onMonitor} {onAnalytics} {onProjector} />
+				{/each}
+			{/if}
 		</div>
 	{/if}
 </div>

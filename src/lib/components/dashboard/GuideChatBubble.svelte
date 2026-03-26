@@ -52,6 +52,29 @@
 		sendMessage(prompt);
 	}
 
+	// Simple markdown to HTML (bold, italic, inline code, bullet lists, line breaks)
+	function renderMarkdown(text) {
+		let html = text
+			// Escape HTML
+			.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+			// Code blocks (triple backtick)
+			.replace(/```([^`]*?)```/gs, '<pre><code>$1</code></pre>')
+			// Inline code
+			.replace(/`([^`]+?)`/g, '<code>$1</code>')
+			// Bold
+			.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+			// Italic
+			.replace(/\*(.+?)\*/g, '<em>$1</em>')
+			// Bullet lists (lines starting with - or *)
+			.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>')
+			// Wrap consecutive <li> in <ul>
+			.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+			// Line breaks (double newline = paragraph, single = br)
+			.replace(/\n\n/g, '</p><p>')
+			.replace(/\n/g, '<br>');
+		return `<p>${html}</p>`;
+	}
+
 	// Show starters when no messages yet
 	let showStarters = $derived(messages.length === 0 && !loading);
 </script>
@@ -100,7 +123,11 @@
 					{#if msg.role === 'assistant'}
 						<span class="ws-chat-msg__avatar">AI</span>
 					{/if}
-					<div class="ws-chat-msg__content">{msg.content}</div>
+					{#if msg.role === 'assistant'}
+						<div class="ws-chat-msg__content ws-chat-msg__content--rich">{@html renderMarkdown(msg.content)}</div>
+					{:else}
+						<div class="ws-chat-msg__content">{msg.content}</div>
+					{/if}
 				</div>
 			{/each}
 

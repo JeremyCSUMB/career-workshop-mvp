@@ -13,9 +13,10 @@
 	import CompleteScreen from '$lib/components/interview/CompleteScreen.svelte';
 	import { fade, fly } from 'svelte/transition';
 
-	let screen = $state('entry'); // entry | rooms | waiting | interview | complete
+	let screen = $state('entry'); // entry | rooms | waiting | interview | complete | ended
 	let rooms = $state([]);
 	let codeFromUrl = $state(false);
+	let sessionEndedMessage = $state('');
 
 	// Nudge state
 	let nudgeText = $state('');
@@ -183,7 +184,12 @@
 				startWaitingPoll();
 			}
 		} catch (err) {
-			alert(err.message);
+			if (err.message && err.message.includes('session has ended')) {
+				sessionEndedMessage = 'This session has ended. You can no longer join.';
+				goToScreen('ended');
+			} else {
+				alert(err.message);
+			}
 		}
 	}
 
@@ -244,6 +250,11 @@
 			if ($interviewState.studentName) {
 				handleRoomsFound([]); // Will trigger find rooms
 				api('workshop-rooms', { params: { sessionId: codeParam } }).then((data) => {
+					if (data.ended) {
+						sessionEndedMessage = 'This session has ended.';
+						goToScreen('ended');
+						return;
+					}
 					rooms = data.rooms || [];
 					if (rooms.length > 0) goToScreen('rooms');
 				}).catch(() => {});
@@ -270,6 +281,12 @@
 			api('workshop-room', {
 				params: { sessionId: s.sessionId, roomId: s.roomId }
 			}).then((data) => {
+				if (data.ended) {
+					stopAllPolling();
+					sessionEndedMessage = 'This session has ended.';
+					goToScreen('ended');
+					return;
+				}
 				const room = data.room || data;
 				const students = extractStudentNames(room.students);
 				interviewState.update((st) => ({ ...st, students }));
@@ -285,6 +302,11 @@
 
 		if (s.phase === 'rooms') {
 			api('workshop-rooms', { params: { sessionId: s.sessionId } }).then((data) => {
+				if (data.ended) {
+					sessionEndedMessage = 'This session has ended.';
+					goToScreen('ended');
+					return;
+				}
 				if (data.rounds) interviewState.update((st) => ({ ...st, totalRounds: data.rounds, prompts: data.prompts || st.prompts }));
 				rooms = data.rooms || [];
 				goToScreen('rooms');
@@ -328,6 +350,13 @@
 				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} />
 			{:else if screen === 'complete'}
 				<CompleteScreen onChangeRoom={handleChangeRoom} onSwitchSession={handleSwitchSession} onLeave={handleLeave} />
+			{:else if screen === 'ended'}
+				<div class="ws-card" style="text-align:center;padding:40px 24px;">
+					<div style="font-size:48px;margin-bottom:16px;">&#128683;</div>
+					<h2 style="margin:0 0 8px;">Session Ended</h2>
+					<p style="color:var(--ci-text-muted);margin:0 0 24px;">{sessionEndedMessage}</p>
+					<button class="ws-btn" onclick={handleSwitchSession}>Join a Different Session</button>
+				</div>
 			{/if}
 		</div>
 	{/key}

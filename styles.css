@@ -1299,26 +1299,36 @@ body {
    Real-time: Active typing indicator
    ============================================ */
 
-.ws-room-card__active {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--ws-green);
+.ws-room-card__typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   margin-left: 8px;
   vertical-align: middle;
-  opacity: 0;
-  transition: opacity 0.3s;
+  padding: 3px 8px;
+  background: var(--ci-accent-light);
+  border-radius: 10px;
 }
 
-.ws-room-card__active--visible {
-  opacity: 1;
-  animation: ws-typing-pulse 1s ease-in-out infinite;
+.ws-room-card__typing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ci-accent);
+  animation: ws-typing-bounce 1.4s ease-in-out infinite;
 }
 
-@keyframes ws-typing-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
+.ws-room-card__typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.ws-room-card__typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes ws-typing-bounce {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
 }
 
 /* ============================================
@@ -2046,6 +2056,277 @@ body {
 }
 
 
+/* Prompt editor */
+.ws-prompt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ws-prompt-editor {
+  border: 1px solid var(--ci-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ci-surface);
+  transition: border-color 200ms;
+}
+
+.ws-prompt-editor:focus-within {
+  border-color: var(--ci-accent);
+}
+
+.ws-prompt-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--ci-bg);
+  border-bottom: 1px solid var(--ci-border);
+}
+
+.ws-prompt-editor__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ci-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.ws-prompt-editor__reset {
+  font-size: 12px;
+  color: var(--ci-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ws-prompt-editor__reset:hover {
+  text-decoration: underline;
+}
+
+.ws-prompt-editor__input {
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  outline: none;
+  background: var(--ci-surface);
+  color: var(--ci-text);
+  font-family: var(--ci-font);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.ws-prompt-editor__input::placeholder {
+  color: var(--ci-placeholder);
+}
+
+/* Collapse toggle */
+.ws-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ci-text-muted);
+}
+
+.ws-collapse-toggle:hover h2 {
+  color: var(--ci-text);
+}
+
+.ws-collapse-toggle__chevron {
+  font-size: 12px;
+  transition: transform 200ms;
+}
+
+.ws-collapse-toggle__chevron--open {
+  transform: rotate(180deg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PROJECTOR / JOIN CODE SCREEN
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.ws-projector {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ws-projector-enter 300ms ease-out;
+}
+
+@keyframes ws-projector-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ws-projector__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--ci-bg);
+  opacity: 0.98;
+}
+
+.ws-projector__content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 700px;
+  width: 100%;
+  padding: 40px 24px;
+}
+
+.ws-projector__close {
+  position: absolute;
+  top: -20px;
+  right: 0;
+  background: none;
+  border: none;
+  color: var(--ci-text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: color 150ms, background 150ms;
+}
+
+.ws-projector__close:hover {
+  color: var(--ci-text);
+  background: var(--ci-accent-light);
+}
+
+.ws-projector__url {
+  font-size: 18px;
+  color: var(--ci-text-muted);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  margin-bottom: 24px;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+
+.ws-projector__code {
+  font-size: clamp(64px, 14vw, 140px);
+  font-weight: 800;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  letter-spacing: 0.15em;
+  color: var(--ci-accent);
+  line-height: 1.1;
+  margin-bottom: 16px;
+  text-transform: lowercase;
+  user-select: all;
+}
+
+.ws-projector__name {
+  font-size: 20px;
+  color: var(--ci-text);
+  font-weight: 500;
+  margin-bottom: 32px;
+}
+
+.ws-projector__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  color: var(--ci-text-muted);
+  padding: 12px 24px;
+  background: var(--ci-surface);
+  border: 1px solid var(--ci-border);
+  border-radius: 40px;
+  margin-bottom: 40px;
+}
+
+.ws-projector__status strong {
+  color: var(--ci-text);
+}
+
+.ws-projector__status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ws-projector__status-dot--waiting {
+  background: var(--ws-yellow);
+  animation: ws-live-pulse 2s ease-in-out infinite;
+}
+
+.ws-projector__status-dot--active {
+  background: var(--ws-green);
+  animation: ws-live-pulse 2s ease-in-out infinite;
+}
+
+.ws-projector__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ws-projector__btn {
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: var(--ci-accent);
+  color: #fff;
+  transition: opacity 150ms, transform 150ms;
+}
+
+.ws-projector__btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.ws-projector__btn--secondary {
+  background: var(--ci-surface);
+  color: var(--ci-text);
+  border: 1px solid var(--ci-border);
+}
+
+.ws-projector__btn--secondary:hover {
+  border-color: var(--ci-accent);
+  opacity: 1;
+}
+
+@media (max-width: 600px) {
+  .ws-projector__code {
+    font-size: clamp(48px, 12vw, 80px);
+  }
+
+  .ws-projector__url {
+    font-size: 14px;
+  }
+
+  .ws-projector__status {
+    font-size: 15px;
+    padding: 10px 18px;
+  }
+
+  .ws-projector__content {
+    padding: 24px 16px;
+  }
+
+  .ws-projector__actions {
+    flex-direction: column;
+  }
+
+  .ws-projector__btn {
+    width: 100%;
+  }
+}
+
+
 /* ═══════════════════════════════════════════════════════════════════════
    GUIDE / TUTORIAL
    ═══════════════════════════════════════════════════════════════════════ */
@@ -2685,6 +2966,63 @@ body {
   max-width: 80%;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Rich markdown content in chat */
+.ws-chat-msg__content--rich p {
+  margin: 0 0 8px;
+}
+
+.ws-chat-msg__content--rich p:last-child {
+  margin-bottom: 0;
+}
+
+.ws-chat-msg__content--rich strong {
+  font-weight: 600;
+}
+
+.ws-chat-msg__content--rich em {
+  font-style: italic;
+}
+
+.ws-chat-msg__content--rich code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  padding: 2px 5px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+
+.ws-chat-msg--assistant .ws-chat-msg__content--rich code {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .ws-chat-msg__content--rich code {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ws-chat-msg__content--rich pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--ci-bg);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.ws-chat-msg__content--rich pre code {
+  padding: 0;
+  background: none;
+  font-size: 12px;
+}
+
+.ws-chat-msg__content--rich ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.ws-chat-msg__content--rich li {
+  margin-bottom: 3px;
+  line-height: 1.5;
 }
 
 /* Typing indicator */

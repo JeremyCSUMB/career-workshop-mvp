@@ -6,7 +6,7 @@
 	import RoomCard from './RoomCard.svelte';
 	import NudgeModal from './NudgeModal.svelte';
 
-	let { sessionId, onBackToSessions } = $props();
+	let { sessionId, onBackToSessions, onProjector } = $props();
 
 	let rooms = $state([]);
 	let totalRounds = $state(0);
@@ -343,6 +343,7 @@
 
 <div class="ws-dash-toolbar">
 	<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={handleBack}>Back to Sessions</button>
+	<button class="ws-btn ws-btn--small" onclick={() => onProjector(sessionId, '')}>Present Code</button>
 	<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={downloadJSON}>Download JSON</button>
 	{#if profileCount > 0}
 		<button class="ws-btn ws-btn--small" onclick={downloadProfiles}>Download Profiles ({profileCount})</button>
