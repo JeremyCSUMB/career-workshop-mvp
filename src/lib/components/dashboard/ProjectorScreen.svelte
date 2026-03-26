@@ -16,12 +16,7 @@
 		return `${base}/interview?code=${encodeURIComponent(sessionId)}`;
 	}
 
-	// Format the code with a space in the middle for readability
-	let formattedCode = $derived(
-		sessionId.length === 6
-			? sessionId.slice(0, 3) + ' ' + sessionId.slice(3)
-			: sessionId
-	);
+	let formattedCode = $derived(sessionId);
 
 	async function pollStudents() {
 		try {

@@ -1,7 +1,30 @@
 <script>
+	import { onMount, onDestroy } from 'svelte';
 	import { api } from '$lib/api.js';
 
 	let { session, isEnded = false, onMonitor, onAnalytics, onProjector } = $props();
+
+	let studentCount = $state(null);
+	let pollInterval = null;
+
+	async function pollStudents() {
+		try {
+			const data = await api('workshop-pulse', { params: { sessionId: session.id } });
+			const rooms = data.rooms || [];
+			studentCount = rooms.reduce((sum, r) => sum + (r.studentCount || 0), 0);
+		} catch {}
+	}
+
+	onMount(() => {
+		if (!isEnded) {
+			pollStudents();
+			pollInterval = setInterval(pollStudents, 5000);
+		}
+	});
+
+	onDestroy(() => {
+		if (pollInterval) clearInterval(pollInterval);
+	});
 
 	function relativeTime(isoOrMs) {
 		if (!isoOrMs) return '\u2014';
@@ -84,6 +107,9 @@
 			</div>
 			<div class="ws-session-card__meta">
 				{session.roomCount} rooms &middot; Created {relativeTime(session.created)}
+				{#if !isEnded && studentCount !== null}
+					&middot; <strong>{studentCount}</strong> student{studentCount !== 1 ? 's' : ''} joined
+				{/if}
 				{#if isEnded && session.endedAt}
 					&middot; Ended {relativeTime(session.endedAt)}
 				{/if}
