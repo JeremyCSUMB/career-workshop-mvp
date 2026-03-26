@@ -21,6 +21,7 @@
 	// Nudge state
 	let nudgeText = $state('');
 	let nudgeVisible = $state(false);
+	let lastNudgeTimestamp = $state('');
 	let nudgeDismissTimer = null;
 
 	// Polling intervals
@@ -82,9 +83,10 @@
 			if (!$interviewState.sessionId || !$interviewState.roomId) return;
 			try {
 				const data = await api('workshop-nudge', {
-					params: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId }
+					params: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId, since: lastNudgeTimestamp }
 				});
 				if (data.nudges && data.nudges.length > 0) {
+					lastNudgeTimestamp = data.nudges[data.nudges.length - 1].timestamp;
 					nudgeText = data.nudges[data.nudges.length - 1].message;
 					nudgeVisible = true;
 					clearTimeout(nudgeDismissTimer);
@@ -143,6 +145,7 @@
 		if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
 		if (nudgeInterval) { clearInterval(nudgeInterval); nudgeInterval = null; }
 		if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; }
+		lastNudgeTimestamp = '';
 	}
 
 	// Event handlers from child components
