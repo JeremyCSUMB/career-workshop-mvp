@@ -1260,7 +1260,7 @@ body {
 
 .ws-dash-toolbar {
   display: flex;
-  gap: 8px;
+  gap: 16px;
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
