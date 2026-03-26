@@ -101,20 +101,26 @@
 			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question is a full cycle &mdash; both partners take turns interviewing and sharing.</div>
 		</div>
 		<div class="ws-field">
-			<label class="ws-label">Question Prompts <span style="font-weight:400;color:var(--ci-text-muted);">(edit to customize)</span></label>
-			{#each prompts as prompt, idx}
-				<div style="margin-bottom:12px;">
-					<label class="ws-label" style="font-size:13px;margin-bottom:4px;">Question {idx + 1}</label>
-					<textarea
-						class="ws-textarea"
-						style="min-height:60px;"
-						placeholder="Leave blank to use the default prompt"
-						value={prompt}
-						oninput={(e) => updatePrompt(idx, e.target.value)}
-					></textarea>
-				</div>
-			{/each}
-			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question shows the same prompt for both turns. Edit any prompt or leave as default.</div>
+			<label class="ws-label">Question Prompts</label>
+			<div class="ws-prompt-list">
+				{#each prompts as prompt, idx}
+					<div class="ws-prompt-editor">
+						<div class="ws-prompt-editor__header">
+							<span class="ws-prompt-editor__label">Question {idx + 1}</span>
+							{#if prompt !== DEFAULT_PROMPT}
+								<button class="ws-prompt-editor__reset" onclick={() => updatePrompt(idx, DEFAULT_PROMPT)}>Reset to default</button>
+							{/if}
+						</div>
+						<textarea
+							class="ws-prompt-editor__input"
+							placeholder="Leave blank to use the default prompt"
+							value={prompt}
+							oninput={(e) => updatePrompt(idx, e.target.value)}
+						></textarea>
+					</div>
+				{/each}
+			</div>
+			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:8px;">Each question shows the same prompt for both turns. Edit any prompt or leave as default.</div>
 		</div>
 		{#if createError}
 			<div class="ws-error">{createError}</div>
