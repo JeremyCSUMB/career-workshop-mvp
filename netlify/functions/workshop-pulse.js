@@ -40,12 +40,21 @@ exports.handler = async (event) => {
 
   try {
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
+
+    // Fetch room blobs and their separate heartbeat blobs in parallel
     const allData = await Promise.all(
-      blobs.map((blob) => store.get(blob.key, { type: 'json' }))
+      blobs.map(async (blob) => {
+        const roomId = blob.key.split(':').pop();
+        const [room, hb] = await Promise.all([
+          store.get(blob.key, { type: 'json' }),
+          store.get(`heartbeat:${sessionId}:${roomId}`, { type: 'json' }).catch(() => null),
+        ]);
+        return { room, heartbeat: hb };
+      })
     );
     const rooms = [];
 
-    for (const data of allData) {
+    for (const { room: data, heartbeat: hbData } of allData) {
       if (!data) continue;
 
       const students = data.students || {};
@@ -63,7 +72,7 @@ exports.handler = async (event) => {
         submissionCount: submissions.length,
         wordCount: totalWords,
         lastInputTime: data.lastInputTime || null,
-        lastHeartbeat: data.lastHeartbeat || null,
+        lastHeartbeat: hbData?.timestamp || data.lastHeartbeat || null,
         latestSubmissionTime,
         currentRound: data.currentRound || 1,
         roundStartTime: data.roundStartTime || null,

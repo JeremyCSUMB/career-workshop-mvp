@@ -53,13 +53,10 @@ exports.handler = async (event) => {
       return json(403, { error: 'This session has ended' });
     }
 
-    const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
-    if (!room) {
-      return json(404, { error: 'Room not found' });
-    }
-
-    room.lastHeartbeat = new Date().toISOString();
-    await store.setJSON(`room:${sessionId}:${roomId}`, room);
+    // Write heartbeat to a separate blob key so we never do a
+    // read-modify-write on the room blob (avoids race with join/leave).
+    const timestamp = new Date().toISOString();
+    await store.setJSON(`heartbeat:${sessionId}:${roomId}`, { timestamp, roomId });
 
     return json(200, { ok: true });
   } catch (error) {

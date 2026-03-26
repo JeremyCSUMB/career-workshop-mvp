@@ -44,42 +44,68 @@ exports.handler = async (event) => {
   const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
 
   try {
-    // Check if session has ended
+    // Check if session exists
     const session = await store.get(`session:${sessionId}`, { type: 'json' });
     if (!session) {
       return json(404, { error: 'Session not found' });
     }
 
-    const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
-    if (!room) {
-      return json(404, { error: 'Room not found' });
+    // Try to join with a verify-after-write to guard against concurrent
+    // writes (e.g. another join or nudge POST) clobbering our update.
+    async function tryJoin() {
+      const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+      if (!room) {
+        return json(404, { error: 'Room not found' });
+      }
+
+      // Allow rejoin if student is already in the room
+      const alreadyIn =
+        room.students.student1 === studentName ||
+        room.students.student2 === studentName;
+
+      if (alreadyIn) {
+        return json(200, { room, rejoined: true });
+      }
+
+      // Block new joins for ended sessions (checked after rejoin so
+      // students can resume an ended session they were already in)
+      if (session.ended) {
+        return json(403, { error: 'This session has ended' });
+      }
+
+      // Assign to first available slot
+      if (!room.students.student1) {
+        room.students.student1 = studentName;
+      } else if (!room.students.student2) {
+        room.students.student2 = studentName;
+      } else {
+        return json(409, { error: 'Room is full' });
+      }
+
+      await store.setJSON(`room:${sessionId}:${roomId}`, room);
+
+      // Verify our write was not clobbered by a concurrent operation
+      const verified = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+      const present =
+        verified.students.student1 === studentName ||
+        verified.students.student2 === studentName;
+
+      if (!present) {
+        return null; // signal retry
+      }
+
+      return json(200, { room: verified });
     }
 
-    // Allow rejoin if student is already in the room
-    const alreadyIn =
-      room.students.student1 === studentName ||
-      room.students.student2 === studentName;
-
-    if (alreadyIn) {
-      return json(200, { room, rejoined: true });
+    // Attempt join, retry once if clobbered by a concurrent write
+    let result = await tryJoin();
+    if (result === null) {
+      result = await tryJoin();
     }
-
-    // Block new joins for ended sessions
-    if (session.ended) {
-      return json(403, { error: 'This session has ended' });
+    if (result === null) {
+      return json(409, { error: 'Join conflict, please try again' });
     }
-
-    // Assign to first available slot
-    if (!room.students.student1) {
-      room.students.student1 = studentName;
-    } else if (!room.students.student2) {
-      room.students.student2 = studentName;
-    } else {
-      return json(409, { error: 'Room is full' });
-    }
-
-    await store.setJSON(`room:${sessionId}:${roomId}`, room);
-    return json(200, { room });
+    return result;
   } catch (error) {
     console.error('Join room error:', error);
     return json(500, { error: 'Failed to join room' });

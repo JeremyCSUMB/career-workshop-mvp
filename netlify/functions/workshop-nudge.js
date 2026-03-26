@@ -28,9 +28,9 @@ exports.handler = async (event) => {
 
   const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
 
-  // --- GET: fetch unread nudges ---
+  // --- GET: fetch nudges (read-only — no write to room blob) ---
   if (event.httpMethod === 'GET') {
-    const { sessionId, roomId } = event.queryStringParameters || {};
+    const { sessionId, roomId, since } = event.queryStringParameters || {};
     if (!sessionId || !roomId) {
       return json(400, { error: 'Missing required query parameters: sessionId, roomId' });
     }
@@ -41,15 +41,14 @@ exports.handler = async (event) => {
         return json(404, { error: 'Room not found' });
       }
 
-      const unread = room.nudges.filter(n => !n.read);
+      // Filter by timestamp instead of marking read on the server.
+      // This avoids a read-modify-write on the room blob that can
+      // race with join/leave/heartbeat operations.
+      const nudges = since
+        ? room.nudges.filter(n => n.timestamp > since)
+        : room.nudges;
 
-      // Mark them as read
-      for (const nudge of room.nudges) {
-        if (!nudge.read) nudge.read = true;
-      }
-
-      await store.setJSON(`room:${sessionId}:${roomId}`, room);
-      return json(200, { nudges: unread });
+      return json(200, { nudges });
     } catch (error) {
       console.error('Get nudges error:', error);
       return json(500, { error: 'Failed to get nudges' });
