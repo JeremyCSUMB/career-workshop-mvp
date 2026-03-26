@@ -1,4 +1,5 @@
 <script>
+	import { untrack } from 'svelte';
 	import { api } from '$lib/api.js';
 	import { interviewState } from '$lib/stores/interview.js';
 
@@ -6,8 +7,15 @@
 
 	let loading = $state(false);
 	let error = $state('');
-	let sessionInput = $state($interviewState.sessionId);
-	let nameInput = $state($interviewState.studentName);
+	let sessionInput = $state('');
+	let nameInput = $state('');
+
+	// Only autofill the session code when it comes from a ?code= URL parameter
+	$effect(() => {
+		if (codeFromUrl) {
+			sessionInput = untrack(() => $interviewState.sessionId);
+		}
+	});
 
 	async function handleFindRooms() {
 		const sessionId = sessionInput.trim();
