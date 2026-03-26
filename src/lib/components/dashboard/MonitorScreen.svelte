@@ -74,11 +74,14 @@
 		const currentRound = room.currentRound || 1;
 		if (subs.length === 0) return 'waiting';
 		const roundPrefix = `round${currentRound}`;
+		const hasFollowupSub = subs.some(s => (s.round || '') === `${roundPrefix}-followup`);
+		if (hasFollowupSub) return 'profile';
+		// AI follow-up questions are generated only after formal notes submission
+		const followups = room.aiFollowUps || [];
+		if (followups.length >= currentRound) return 'follow-up';
 		const hasNotes = subs.some(s => (s.round || '') === `${roundPrefix}-notes`);
-		const hasFollowup = subs.some(s => (s.round || '') === `${roundPrefix}-followup`);
-		if (hasFollowup) return 'profile';
-		if (hasNotes) return 'follow-up';
-		return 'notes';
+		if (hasNotes) return 'notes';
+		return 'waiting';
 	}
 
 	function enrichRoom(room) {
