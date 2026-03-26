@@ -2046,6 +2046,32 @@ body {
 }
 
 
+/* Collapse toggle */
+.ws-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ci-text-muted);
+}
+
+.ws-collapse-toggle:hover h2 {
+  color: var(--ci-text);
+}
+
+.ws-collapse-toggle__chevron {
+  font-size: 12px;
+  transition: transform 200ms;
+}
+
+.ws-collapse-toggle__chevron--open {
+  transform: rotate(180deg);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    GUIDE / TUTORIAL
    ═══════════════════════════════════════════════════════════════════════ */

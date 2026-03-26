@@ -17,6 +17,7 @@
 	let liveSessions = $state([]);
 	let endedSessions = $state([]);
 	let loading = $state(true);
+	let previousExpanded = $state(false);
 
 	$effect(() => {
 		const count = Math.max(1, Math.min(10, questionCount || 1));
@@ -144,10 +145,19 @@
 
 	{#if endedSessions.length > 0}
 		<div style="margin-top:32px;">
-			<h2 style="font-size:18px;margin:0 0 12px;color:var(--ci-text-muted);">Previous Sessions</h2>
-			{#each endedSessions as s (s.id)}
-				<SessionCard session={s} isEnded={true} {onMonitor} {onAnalytics} />
-			{/each}
+			<button
+				class="ws-collapse-toggle"
+				onclick={() => previousExpanded = !previousExpanded}
+				aria-expanded={previousExpanded}
+			>
+				<h2 style="font-size:18px;margin:0;color:var(--ci-text-muted);">Previous Sessions ({endedSessions.length})</h2>
+				<span class="ws-collapse-toggle__chevron" class:ws-collapse-toggle__chevron--open={previousExpanded}>{'\u25BC'}</span>
+			</button>
+			{#if previousExpanded}
+				{#each endedSessions as s (s.id)}
+					<SessionCard session={s} isEnded={true} {onMonitor} {onAnalytics} />
+				{/each}
+			{/if}
 		</div>
 	{/if}
 </div>
