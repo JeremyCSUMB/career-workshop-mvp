@@ -130,14 +130,29 @@
 </div>
 
 {#if loading}
-	<div class="ws-card" style="max-width:500px;margin:40px auto;text-align:center;">
-		<WaitingDots />
-		<p style="margin-top:12px;color:var(--ci-text-muted);">Generating analytics&hellip; this may take a moment.</p>
+	<div style="max-width:600px;margin:24px auto;">
+		<div class="ws-skeleton-row">
+			{#each Array(4) as _}
+				<div class="ws-skeleton ws-skeleton-stat"></div>
+			{/each}
+		</div>
+		<div class="ws-skeleton ws-skeleton-bar" style="margin-top:16px;"></div>
+		<div class="ws-skeleton ws-skeleton-text" style="margin-top:16px;"></div>
+		<div class="ws-skeleton ws-skeleton-text ws-skeleton-text--short"></div>
+		<div class="ws-skeleton-row" style="margin-top:24px;">
+			<div class="ws-skeleton ws-skeleton-card"></div>
+			<div class="ws-skeleton ws-skeleton-card"></div>
+		</div>
+		<p style="text-align:center;margin-top:16px;color:var(--ci-text-muted);font-size:14px;">Generating analytics&hellip; this may take a moment.</p>
 	</div>
 {:else if error}
-	<div class="ws-card" style="max-width:500px;margin:40px auto;text-align:center;">
-		<div class="ws-error" style="margin-bottom:12px;">Failed to load analytics: {error}</div>
-		<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={retry}>Retry</button>
+	<div class="ws-empty-state" style="max-width:500px;margin:40px auto;">
+		<div class="ws-empty-state__icon">
+			<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+		</div>
+		<p class="ws-empty-state__title">Unable to load analytics</p>
+		<p class="ws-empty-state__text" style="margin-bottom:16px;">{error}</p>
+		<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={retry}>Try Again</button>
 	</div>
 {:else if analytics}
 	<!-- Session Overview -->

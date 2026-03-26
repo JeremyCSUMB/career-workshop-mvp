@@ -9,7 +9,7 @@
 </script>
 
 <div class="ws-card ws-card--centered">
-	<div class="ws-waiting">
+	<div class="ws-waiting" aria-live="polite">
 		<WaitingDots />
 		{#if students.length >= 2}
 			<p>Both partners are here!</p>
