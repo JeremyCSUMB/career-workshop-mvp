@@ -258,6 +258,43 @@
 		onBackToSessions();
 	}
 
+	let profileCount = $derived(rooms.reduce((sum, r) => {
+		const profiles = Array.isArray(r.capabilityProfiles) ? r.capabilityProfiles : (r.capabilityProfile ? [r.capabilityProfile] : []);
+		return sum + profiles.length;
+	}, 0));
+
+	function downloadProfiles() {
+		if (!sessionId) return;
+		const allProfiles = [];
+		for (const r of rooms) {
+			const profiles = Array.isArray(r.capabilityProfiles) ? r.capabilityProfiles : (r.capabilityProfile ? [r.capabilityProfile] : []);
+			for (const p of profiles) {
+				allProfiles.push({
+					roomId: r.id,
+					studentName: p.studentName || null,
+					round: p.round || null,
+					summary: p.summary || '',
+					capabilities: p.capabilities || [],
+					generatedAt: p.generatedAt || null,
+				});
+			}
+		}
+		if (allProfiles.length === 0) return;
+		const exportData = {
+			sessionId,
+			exportedAt: new Date().toISOString(),
+			profileCount: allProfiles.length,
+			profiles: allProfiles,
+		};
+		const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `profiles-${sessionId}-${new Date().toISOString().slice(0, 10)}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function downloadJSON() {
 		if (!sessionId) return;
 		const exportData = {
@@ -307,6 +344,9 @@
 <div class="ws-dash-toolbar">
 	<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={handleBack}>Back to Sessions</button>
 	<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={downloadJSON}>Download JSON</button>
+	{#if profileCount > 0}
+		<button class="ws-btn ws-btn--small" onclick={downloadProfiles}>Download Profiles ({profileCount})</button>
+	{/if}
 </div>
 
 <div class="ws-room-grid">

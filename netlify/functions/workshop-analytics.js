@@ -86,6 +86,7 @@ function computeMetrics(session, rooms) {
       nudgeCount,
       classificationHistory: classifications.map((c) => ({ status: c.status, timestamp: c.timestamp })),
       capabilityProfile: room.capabilityProfile || null,
+      capabilityProfiles: Array.isArray(room.capabilityProfiles) ? room.capabilityProfiles : (room.capabilityProfile ? [room.capabilityProfile] : []),
       roundsCompleted: Math.min(room.currentRound || 0, totalRounds),
       totalRounds,
     };
