@@ -941,6 +941,39 @@ body {
   margin-bottom: 12px;
 }
 
+.ws-room-card__phase {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--ci-bg-muted, #f0f0f0);
+  color: var(--ci-text-muted);
+}
+.ws-room-card__phase--notes { background: #e8f0fe; color: #1a56db; }
+.ws-room-card__phase--follow-up { background: #fef3c7; color: #92400e; }
+.ws-room-card__phase--profile { background: #d1fae5; color: #065f46; }
+
+.ws-room-card__submission {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ci-border, #e5e7eb);
+}
+.ws-room-card__submission:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.ws-room-card__submission-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ci-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
 .ws-room-card__actions {
   display: flex;
   gap: 8px;

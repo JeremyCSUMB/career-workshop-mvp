@@ -9,6 +9,8 @@
 	let wordCount = $derived(room._wordCount || 0);
 	let lastInput = $derived(room._lastInputTime);
 	let preview = $derived(room._latestNotes || '');
+	let submissionSummaries = $derived(room._submissionSummaries || []);
+	let phase = $derived(room._phase || '');
 	let reasoning = $derived(room._reasoning || '');
 	let roundStartedAt = $derived(room.roundStartTime);
 
@@ -116,13 +118,37 @@
 	</div>
 	<div class="ws-room-card__meta">
 		<span class="ws-room-card__meta-item">{isComplete ? `Complete (${totalQuestions} Q)` : `Q${questionNum} · Turn ${turnNum}`}</span>
+		{#if phase && !isComplete}
+			<span class="ws-room-card__phase ws-room-card__phase--{phase}">{phase === 'follow-up' ? 'Follow-up Qs' : phase === 'profile' ? 'Profile' : phase === 'notes' ? 'Taking notes' : 'Waiting'}</span>
+		{/if}
 		{#if elapsed}
 			<span class="ws-room-card__meta-item">{elapsed}</span>
 		{/if}
 		<span class="ws-room-card__meta-item">{wordCount} words</span>
 		<span class="ws-room-card__meta-item">{relTime}</span>
 	</div>
-	{#if preview}
+	{#if submissionSummaries.length > 0}
+		<button
+			class="ws-room-card__preview"
+			class:ws-room-card__preview--collapsed={previewCollapsed}
+			class:ws-room-card__preview--expanded={!previewCollapsed}
+			onclick={togglePreview}
+			aria-label={previewCollapsed ? 'Expand preview' : 'Collapse preview'}
+		>
+			{#if previewCollapsed}
+				{@const last = submissionSummaries[submissionSummaries.length - 1]}
+				<span class="ws-room-card__submission-label">{last.label} ({last.wordCount}w)</span>
+				{last.notes.length > 120 ? last.notes.slice(0, 120) + '...' : last.notes}
+			{:else}
+				{#each submissionSummaries as sub}
+					<div class="ws-room-card__submission">
+						<span class="ws-room-card__submission-label">{sub.label} ({sub.wordCount}w)</span>
+						{sub.notes}
+					</div>
+				{/each}
+			{/if}
+		</button>
+	{:else if preview}
 		<button
 			class="ws-room-card__preview"
 			class:ws-room-card__preview--collapsed={previewCollapsed}

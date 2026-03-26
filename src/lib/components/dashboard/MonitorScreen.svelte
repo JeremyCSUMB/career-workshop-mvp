@@ -54,6 +54,33 @@
 		return subs[subs.length - 1].notes || '';
 	}
 
+	function getSubmissionSummaries(room) {
+		const subs = room.submissions || [];
+		if (subs.length === 0) return [];
+		return subs.map(s => {
+			const isFollowup = (s.round || '').includes('-followup');
+			const label = isFollowup ? 'Follow-up' : 'Notes';
+			const about = s.aboutStudent ? ` about ${s.aboutStudent}` : '';
+			return {
+				label: `${s.studentName}${about} · ${label}`,
+				notes: s.notes || '',
+				wordCount: s.wordCount || 0,
+			};
+		});
+	}
+
+	function getRoomPhase(room) {
+		const subs = room.submissions || [];
+		const currentRound = room.currentRound || 1;
+		if (subs.length === 0) return 'waiting';
+		const roundPrefix = `round${currentRound}`;
+		const hasNotes = subs.some(s => (s.round || '') === `${roundPrefix}-notes`);
+		const hasFollowup = subs.some(s => (s.round || '') === `${roundPrefix}-followup`);
+		if (hasFollowup) return 'profile';
+		if (hasNotes) return 'follow-up';
+		return 'notes';
+	}
+
 	function enrichRoom(room) {
 		const cls = getRoomStatus(room);
 		room._status = cls.status;
@@ -61,6 +88,8 @@
 		room._suggestedNudge = cls.suggestedNudge;
 		room._wordCount = getRoomWordCount(room);
 		room._latestNotes = getLatestNotes(room);
+		room._submissionSummaries = getSubmissionSummaries(room);
+		room._phase = getRoomPhase(room);
 		room._lastInputTime = room.lastInputTime || null;
 		room._studentNames = extractStudentNames(room.students);
 	}
