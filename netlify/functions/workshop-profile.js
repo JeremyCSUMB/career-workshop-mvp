@@ -58,7 +58,9 @@ exports.handler = async (event) => {
     // round as strings like "round1-notes" or "round1-followup"
     const roundPrefix = `round${round}`;
     const relevantSubmissions = room.submissions.filter(
-      s => s.round.startsWith(roundPrefix) && s.studentName !== studentName
+      s => s.round.startsWith(roundPrefix) && (
+        s.aboutStudent ? s.aboutStudent === studentName : s.studentName !== studentName
+      )
     );
 
     if (relevantSubmissions.length === 0) {

@@ -36,7 +36,7 @@ exports.handler = async (event) => {
     return json(400, { error: 'Invalid JSON in request body' });
   }
 
-  const { sessionId, roomId, studentName, notes, round } = body;
+  const { sessionId, roomId, studentName, aboutStudent, notes, round } = body;
   if (!sessionId || !roomId || !studentName || !notes || !round) {
     return json(400, { error: 'Missing required fields: sessionId, roomId, studentName, notes, round' });
   }
@@ -54,6 +54,7 @@ exports.handler = async (event) => {
 
     const submission = {
       studentName,
+      aboutStudent: aboutStudent || null,
       role: 'interviewer',
       notes,
       wordCount,

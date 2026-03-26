@@ -9,6 +9,7 @@
 	let { sessionId, onBackToSessions } = $props();
 
 	let rooms = $state([]);
+	let totalRounds = $state(0);
 	let lastPulse = {};
 	let dirtyRooms = new Set();
 	let lastClassifyTimestamps = {};
@@ -53,6 +54,33 @@
 		return subs[subs.length - 1].notes || '';
 	}
 
+	function getSubmissionSummaries(room) {
+		const subs = room.submissions || [];
+		if (subs.length === 0) return [];
+		return subs.map(s => {
+			const isFollowup = (s.round || '').includes('-followup');
+			const label = isFollowup ? 'Follow-up' : 'Notes';
+			const about = s.aboutStudent ? ` about ${s.aboutStudent}` : '';
+			return {
+				label: `${s.studentName}${about} · ${label}`,
+				notes: s.notes || '',
+				wordCount: s.wordCount || 0,
+			};
+		});
+	}
+
+	function getRoomPhase(room) {
+		const subs = room.submissions || [];
+		const currentRound = room.currentRound || 1;
+		if (subs.length === 0) return 'waiting';
+		const roundPrefix = `round${currentRound}`;
+		const hasNotes = subs.some(s => (s.round || '') === `${roundPrefix}-notes`);
+		const hasFollowup = subs.some(s => (s.round || '') === `${roundPrefix}-followup`);
+		if (hasFollowup) return 'profile';
+		if (hasNotes) return 'follow-up';
+		return 'notes';
+	}
+
 	function enrichRoom(room) {
 		const cls = getRoomStatus(room);
 		room._status = cls.status;
@@ -60,6 +88,8 @@
 		room._suggestedNudge = cls.suggestedNudge;
 		room._wordCount = getRoomWordCount(room);
 		room._latestNotes = getLatestNotes(room);
+		room._submissionSummaries = getSubmissionSummaries(room);
+		room._phase = getRoomPhase(room);
 		room._lastInputTime = room.lastInputTime || null;
 		room._studentNames = extractStudentNames(room.students);
 	}
@@ -82,6 +112,7 @@
 			const data = await api('workshop-rooms', { params: { sessionId } });
 			const fetched = data.rooms || data || [];
 			const arr = Array.isArray(fetched) ? fetched : [];
+			if (data.rounds) totalRounds = data.rounds;
 			arr.forEach(enrichRoom);
 
 			// Seed pulse cache
@@ -227,6 +258,43 @@
 		onBackToSessions();
 	}
 
+	let profileCount = $derived(rooms.reduce((sum, r) => {
+		const profiles = Array.isArray(r.capabilityProfiles) ? r.capabilityProfiles : (r.capabilityProfile ? [r.capabilityProfile] : []);
+		return sum + profiles.length;
+	}, 0));
+
+	function downloadProfiles() {
+		if (!sessionId) return;
+		const allProfiles = [];
+		for (const r of rooms) {
+			const profiles = Array.isArray(r.capabilityProfiles) ? r.capabilityProfiles : (r.capabilityProfile ? [r.capabilityProfile] : []);
+			for (const p of profiles) {
+				allProfiles.push({
+					roomId: r.id,
+					studentName: p.studentName || null,
+					round: p.round || null,
+					summary: p.summary || '',
+					capabilities: p.capabilities || [],
+					generatedAt: p.generatedAt || null,
+				});
+			}
+		}
+		if (allProfiles.length === 0) return;
+		const exportData = {
+			sessionId,
+			exportedAt: new Date().toISOString(),
+			profileCount: allProfiles.length,
+			profiles: allProfiles,
+		};
+		const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `profiles-${sessionId}-${new Date().toISOString().slice(0, 10)}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function downloadJSON() {
 		if (!sessionId) return;
 		const exportData = {
@@ -276,11 +344,14 @@
 <div class="ws-dash-toolbar">
 	<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={handleBack}>Back to Sessions</button>
 	<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={downloadJSON}>Download JSON</button>
+	{#if profileCount > 0}
+		<button class="ws-btn ws-btn--small" onclick={downloadProfiles}>Download Profiles ({profileCount})</button>
+	{/if}
 </div>
 
 <div class="ws-room-grid">
 	{#each sortedRooms as room (room.id)}
-		<RoomCard {room} onNudge={openNudge} />
+		<RoomCard {room} {totalRounds} onNudge={openNudge} />
 	{/each}
 </div>
 

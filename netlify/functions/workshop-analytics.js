@@ -86,6 +86,7 @@ function computeMetrics(session, rooms) {
       nudgeCount,
       classificationHistory: classifications.map((c) => ({ status: c.status, timestamp: c.timestamp })),
       capabilityProfile: room.capabilityProfile || null,
+      capabilityProfiles: Array.isArray(room.capabilityProfiles) ? room.capabilityProfiles : (room.capabilityProfile ? [room.capabilityProfile] : []),
       roundsCompleted: Math.min(room.currentRound || 0, totalRounds),
       totalRounds,
     };
@@ -130,7 +131,10 @@ function buildAiPrompt(metrics, rooms) {
   const roomSummaries = rooms.map((room, i) => {
     const stats = metrics.rooms[i];
     const notes = (room.submissions || [])
-      .map((s) => `[${s.studentName}, ${s.round}]: ${(s.notes || '').slice(0, 200)}`)
+      .map((s) => {
+        const about = s.aboutStudent ? ` about ${s.aboutStudent}` : '';
+        return `[${s.studentName}${about}, ${s.round}]: ${(s.notes || '').slice(0, 200)}`;
+      })
       .join('\n');
     const profile = stats.capabilityProfile?.capabilities
       ? stats.capabilityProfile.capabilities.map((c) => `- ${c.capability}: ${c.evidence}`).join('\n')

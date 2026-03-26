@@ -86,9 +86,13 @@ exports.handler = async (event) => {
     } else {
       // --- AI classification ---
       try {
-        const allNotes = room.submissions.map(s => `[${s.studentName}]: ${s.notes}`).join('\n\n');
+        const allNotes = room.submissions.map(s => {
+          const about = s.aboutStudent ? ` about ${s.aboutStudent}'s story` : '';
+          const phase = (s.round || '').includes('-followup') ? 'follow-up notes' : 'initial notes';
+          return `[${s.studentName} — ${phase}${about}]: ${s.notes}`;
+        }).join('\n\n');
 
-        const systemPrompt = 'You are classifying student engagement in a peer interview workshop. Given the interview notes, classify the room status. Return ONLY valid JSON: { "status": "red|yellow|green", "reasoning": "brief explanation", "suggested_nudge": "optional nudge message or null" }';
+        const systemPrompt = 'You are classifying student engagement in a peer interview workshop where students take turns interviewing each other. Each student tells their OWN story when they are the storyteller, and takes notes about their PARTNER\'s story when they are the interviewer. The notes from different students describe DIFFERENT stories from different people — do not treat them as one narrative. Given the interview notes, classify the room status. Return ONLY valid JSON: { "status": "red|yellow|green", "reasoning": "brief explanation", "suggested_nudge": "optional nudge message or null" }';
 
         const aiText = await callClaude(systemPrompt, `Interview notes from this room:\n\n${allNotes}`);
 
