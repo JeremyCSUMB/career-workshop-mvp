@@ -117,16 +117,15 @@
 		<span class="ws-room-card__meta-item">{relTime}</span>
 	</div>
 	{#if preview}
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
+		<button
 			class="ws-room-card__preview"
 			class:ws-room-card__preview--collapsed={previewCollapsed}
 			class:ws-room-card__preview--expanded={!previewCollapsed}
 			onclick={togglePreview}
+			aria-label={previewCollapsed ? 'Expand preview' : 'Collapse preview'}
 		>
 			{previewCollapsed ? (preview.length > 150 ? preview.slice(0, 150) + '...' : preview) : preview}
-		</div>
+		</button>
 	{/if}
 	{#if reasoning}
 		<div class="ws-room-card__reasoning">{reasoning}</div>

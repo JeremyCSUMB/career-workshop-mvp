@@ -108,7 +108,7 @@
 
 <main class="ws-container ws-container--wide">
 	{#key screen}
-		<div in:fly={{ y: 6, duration: 300 }} out:fade={{ duration: 150 }}>
+		<div in:fly={{ y: 4, duration: 250 }} out:fade={{ duration: 150 }}>
 			{#if screen === 'login'}
 				<LoginScreen onLogin={handleLogin} />
 			{:else if screen === 'session'}

@@ -8,8 +8,11 @@
 
 	let profiles = $state([]);
 	let loading = $state(true);
+	let loadError = $state('');
 
-	onMount(async () => {
+	async function loadProfiles() {
+		loading = true;
+		loadError = '';
 		try {
 			const data = await api('workshop-room', {
 				params: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId }
@@ -17,11 +20,15 @@
 			const room = data.room || data;
 			const allProfiles = room.capabilityProfiles || (room.capabilityProfile ? [room.capabilityProfile] : []);
 			profiles = allProfiles.filter((p) => p.studentName === $interviewState.studentName);
-		} catch {
-			// silent
+		} catch (err) {
+			loadError = err.message || 'Failed to load profiles';
 		} finally {
 			loading = false;
 		}
+	}
+
+	onMount(() => {
+		loadProfiles();
 	});
 
 	function handleDownloadPDF() {
@@ -74,6 +81,12 @@ ${profilesHTML}
 		<div style="text-align:center;margin-top:12px;">
 			<WaitingDots />
 			<p style="font-size:14px;color:var(--ci-text-muted);">Loading your profiles...</p>
+		</div>
+	{:else if loadError}
+		<div class="ws-empty-state" style="margin-top:12px;">
+			<p class="ws-empty-state__title">Couldn't load your profiles</p>
+			<p class="ws-empty-state__text" style="margin-bottom:12px;">{loadError}</p>
+			<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={loadProfiles}>Try Again</button>
 		</div>
 	{:else if profiles.length === 0}
 		<p style="color:var(--ci-text-muted);font-size:14px;">No capability profiles found for you yet.</p>

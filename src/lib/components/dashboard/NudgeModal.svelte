@@ -1,5 +1,6 @@
 <script>
 	import { api } from '$lib/api.js';
+	import { onMount, onDestroy, tick } from 'svelte';
 
 	let { visible = false, roomId = '', sessionId = '', suggestedNudge = '', onClose } = $props();
 
@@ -12,11 +13,23 @@
 	let customText = $state('');
 	let selectedIdx = $state(-1);
 	let sending = $state(false);
+	let modalEl = $state(null);
+	let previousFocus = null;
 
 	$effect(() => {
 		if (visible) {
 			customText = suggestedNudge || '';
 			selectedIdx = -1;
+			previousFocus = document.activeElement;
+			tick().then(() => {
+				if (modalEl) {
+					const first = modalEl.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+					if (first) first.focus();
+				}
+			});
+		} else if (previousFocus) {
+			previousFocus.focus();
+			previousFocus = null;
 		}
 	});
 
@@ -44,13 +57,39 @@
 	function handleOverlayClick(e) {
 		if (e.target === e.currentTarget) onClose();
 	}
+
+	function handleKeydown(e) {
+		if (e.key === 'Escape') {
+			onClose();
+			return;
+		}
+		if (e.key === 'Tab' && modalEl) {
+			const focusable = modalEl.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+			if (focusable.length === 0) return;
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			if (e.shiftKey && document.activeElement === first) {
+				e.preventDefault();
+				last.focus();
+			} else if (!e.shiftKey && document.activeElement === last) {
+				e.preventDefault();
+				first.focus();
+			}
+		}
+	}
 </script>
 
 {#if visible}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="ws-modal-overlay ws-modal-overlay--visible" onclick={handleOverlayClick}>
-		<div class="ws-modal">
+	<div
+		class="ws-modal-overlay ws-modal-overlay--visible"
+		onclick={handleOverlayClick}
+		onkeydown={handleKeydown}
+		role="dialog"
+		aria-modal="true"
+		aria-label="Send nudge to Room {roomId}"
+	>
+		<div class="ws-modal" bind:this={modalEl}>
 			<h3>Send Nudge</h3>
 			<p>To Room {roomId}</p>
 			<div class="ws-nudge-suggestions">
