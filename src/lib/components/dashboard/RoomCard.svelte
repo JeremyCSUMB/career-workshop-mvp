@@ -94,7 +94,13 @@
 	<div class="ws-room-card__top">
 		<div class="ws-room-card__id">
 			Room {roomId}
-			<span class="ws-room-card__active" class:ws-room-card__active--visible={activeNow} title="Student is actively typing"></span>
+			{#if activeNow}
+				<span class="ws-room-card__typing" title="Student is actively typing">
+					<span class="ws-room-card__typing-dot"></span>
+					<span class="ws-room-card__typing-dot"></span>
+					<span class="ws-room-card__typing-dot"></span>
+				</span>
+			{/if}
 		</div>
 		<div class="ws-room-card__status {statusClass}">
 			<span class="ws-room-card__status-dot"></span>
