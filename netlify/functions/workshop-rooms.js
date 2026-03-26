@@ -47,7 +47,7 @@ exports.handler = async (event) => {
       blobs.map((blob) => store.get(blob.key, { type: 'json' }))
     )).filter(Boolean);
 
-    return json(200, { rooms, rounds, prompts });
+    return json(200, { rooms, rounds, prompts, ended: !!session?.ended });
   } catch (error) {
     console.error('List rooms error:', error);
     return json(500, { error: 'Failed to list rooms' });

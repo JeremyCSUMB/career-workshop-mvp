@@ -34,6 +34,10 @@
 		loading = true;
 		try {
 			const data = await api('workshop-rooms', { params: { sessionId } });
+			if (data.ended) {
+				error = 'This session has ended. You can no longer join.';
+				return;
+			}
 			const rooms = data.rooms || [];
 			if (rooms.length === 0) {
 				error = 'No rooms found for that session code.';
