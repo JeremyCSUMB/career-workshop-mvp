@@ -104,8 +104,7 @@ exports.handler = async (event) => {
     room.capabilityProfiles.push(profile);
     room.capabilityProfile = profile; // keep for backward compat
 
-    // Advance round: fetch session to know total rounds
-    const session = await store.get(`session:${sessionId}`, { type: 'json' });
+    // Advance round: reuse session fetched above to know total rounds
     const totalRounds = session?.rounds || 1;
 
     if (round < totalRounds) {
