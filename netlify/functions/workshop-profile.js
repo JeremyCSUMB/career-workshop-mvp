@@ -105,7 +105,7 @@ exports.handler = async (event) => {
     room.capabilityProfile = profile; // keep for backward compat
 
     // Advance round: reuse session fetched above to know total rounds
-    const totalRounds = (session?.rounds || 1) * 2;
+    const totalRounds = session?.rounds || 2;
 
     if (round < totalRounds) {
       room.currentRound = round + 1;
