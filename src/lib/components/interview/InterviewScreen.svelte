@@ -257,7 +257,7 @@
 						};
 					});
 				}
-				if (currentRound > $interviewState.totalRounds) {
+				if (data.ended || currentRound > $interviewState.totalRounds) {
 					clearInterval(storytellerPollInterval);
 					storytellerPollInterval = null;
 					onComplete();

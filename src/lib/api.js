@@ -17,7 +17,10 @@ export async function api(endpoint, opts = {}) {
 	const res = await fetch(url, fetchOpts);
 	if (!res.ok) {
 		const data = await res.json().catch(() => ({}));
-		throw new Error(data.error || `API error ${res.status}`);
+		const err = new Error(data.error || `API error ${res.status}`);
+		err.status = res.status;
+		err.data = data;
+		throw err;
 	}
 	return res.json();
 }

@@ -19,7 +19,7 @@ function createInterviewStore() {
 		partnerName: '',
 		customTags: [],
 		totalRounds: parseInt(load('ws_totalRounds', '1'), 10),
-		prompts: JSON.parse(load('ws_prompts', '[]')),
+		prompts: (() => { try { return JSON.parse(load('ws_prompts', '[]')); } catch { return []; } })(),
 		codeFromUrl: false
 	};
 

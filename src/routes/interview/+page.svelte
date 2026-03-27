@@ -17,6 +17,7 @@
 	let rooms = $state([]);
 	let codeFromUrl = $state(false);
 	let sessionEndedMessage = $state('');
+	let claimState = $state(null); // { roomId, students } when a 409 with names is received
 
 	// Nudge state
 	let nudgeText = $state('');
@@ -154,11 +155,16 @@
 		goToScreen('rooms');
 	}
 
-	async function handleJoinRoom(roomId) {
+	async function handleClaimSlot(roomId, slot) {
+		claimState = null;
+		await handleJoinRoom(roomId, slot);
+	}
+
+	async function handleJoinRoom(roomId, claimSlot) {
 		try {
-			const data = await api('workshop-join', {
-				body: { sessionId: $interviewState.sessionId, roomId: String(roomId), studentName: $interviewState.studentName }
-			});
+			const joinBody = { sessionId: $interviewState.sessionId, roomId: String(roomId), studentName: $interviewState.studentName };
+			if (claimSlot) joinBody.claimSlot = claimSlot;
+			const data = await api('workshop-join', { body: joinBody });
 			const room = data.room || data;
 
 			interviewState.update((s) => ({ ...s, roomId: String(roomId) }));
@@ -190,6 +196,8 @@
 			if (err.message && err.message.includes('session has ended')) {
 				sessionEndedMessage = 'This session has ended. You can no longer join.';
 				goToScreen('ended');
+			} else if (err.status === 409 && err.data?.students) {
+				claimState = { roomId: String(roomId), students: err.data.students };
 			} else {
 				alert(err.message);
 			}
@@ -258,6 +266,7 @@
 						goToScreen('ended');
 						return;
 					}
+					if (data.rounds) interviewState.update((s) => ({ ...s, totalRounds: data.rounds, prompts: data.prompts || s.prompts }));
 					rooms = data.rooms || [];
 					if (rooms.length > 0) goToScreen('rooms');
 				}).catch(() => {});
@@ -292,7 +301,13 @@
 				}
 				const room = data.room || data;
 				const students = extractStudentNames(room.students);
-				interviewState.update((st) => ({ ...st, students }));
+				const serverRound = room.currentRound || 1;
+				const resumeRound = Math.min(serverRound, $interviewState.totalRounds);
+				interviewState.update((st) => ({ ...st, students, round: resumeRound }));
+				if (serverRound > $interviewState.totalRounds) {
+					goToScreen('complete');
+					return;
+				}
 				if (students.length >= 2) {
 					startInterview();
 				} else {
@@ -346,7 +361,7 @@
 			{#if screen === 'entry'}
 				<EntryScreen onRoomsFound={handleRoomsFound} {codeFromUrl} />
 			{:else if screen === 'rooms'}
-				<RoomPicker {rooms} onJoinRoom={handleJoinRoom} onSwitchSession={handleSwitchSession} />
+				<RoomPicker {rooms} onJoinRoom={handleJoinRoom} onSwitchSession={handleSwitchSession} {claimState} onClaimSlot={handleClaimSlot} onCancelClaim={() => (claimState = null)} />
 			{:else if screen === 'waiting'}
 				<WaitingScreen students={$interviewState.students} onChangeRoom={handleChangeRoom} />
 			{:else if screen === 'interview'}

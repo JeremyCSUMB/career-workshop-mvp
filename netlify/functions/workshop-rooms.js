@@ -39,7 +39,7 @@ exports.handler = async (event) => {
   try {
     // Fetch session to get custom prompts and round count
     const session = await store.get(`session:${sessionId}`, { type: 'json' });
-    const rounds = session?.rounds || 1;
+    const rounds = (session?.rounds || 1) * 2;
     const prompts = session?.prompts || null;
 
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });

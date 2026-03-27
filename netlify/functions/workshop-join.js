@@ -36,9 +36,12 @@ exports.handler = async (event) => {
     return json(400, { error: 'Invalid JSON in request body' });
   }
 
-  const { sessionId, roomId, studentName } = body;
+  const { sessionId, roomId, studentName, claimSlot } = body;
   if (!sessionId || !roomId || !studentName) {
     return json(400, { error: 'Missing required fields: sessionId, roomId, studentName' });
+  }
+  if (claimSlot && claimSlot !== 'student1' && claimSlot !== 'student2') {
+    return json(400, { error: 'claimSlot must be "student1" or "student2"' });
   }
 
   const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
@@ -78,8 +81,11 @@ exports.handler = async (event) => {
         room.students.student1 = studentName;
       } else if (!room.students.student2) {
         room.students.student2 = studentName;
+      } else if (claimSlot) {
+        // Claim an existing slot (student lost their name / different device)
+        room.students[claimSlot] = studentName;
       } else {
-        return json(409, { error: 'Room is full' });
+        return json(409, { error: 'Room is full', students: room.students });
       }
 
       await store.setJSON(`room:${sessionId}:${roomId}`, room);
@@ -94,7 +100,7 @@ exports.handler = async (event) => {
         return null; // signal retry
       }
 
-      return json(200, { room: verified });
+      return json(200, { room: verified, ...(claimSlot ? { rejoined: true, claimed: true } : {}) });
     }
 
     // Attempt join, retry once if clobbered by a concurrent write
@@ -103,7 +109,9 @@ exports.handler = async (event) => {
       result = await tryJoin();
     }
     if (result === null) {
-      return json(409, { error: 'Join conflict, please try again' });
+      // Re-fetch to include current students in the conflict response
+      const conflictRoom = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+      return json(409, { error: 'Join conflict, please try again', students: conflictRoom?.students });
     }
     return result;
   } catch (error) {
