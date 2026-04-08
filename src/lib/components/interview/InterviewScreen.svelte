@@ -4,6 +4,7 @@
 	import { interviewState } from '$lib/stores/interview.js';
 	import WaitingDots from '$lib/components/WaitingDots.svelte';
 	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
 
 	let { onComplete, onChangeRoom } = $props();
 
@@ -27,7 +28,7 @@
 	let roomId = $derived($interviewState.roomId);
 
 	// Interview phases: 'notes' | 'followup' | 'profile'
-	let phase = $state('notes');
+	let phase = $state(browser ? (localStorage.getItem('ws_interviewPhase') || 'notes') : 'notes');
 	let notesText = $state('');
 	let followupText = $state('');
 	let followupQuestions = $state([]);
@@ -265,6 +266,13 @@
 			} catch {}
 		}, 5000);
 	}
+
+	// Persist interview sub-phase to localStorage on every change
+	$effect(() => {
+		if (browser) {
+			localStorage.setItem('ws_interviewPhase', phase);
+		}
+	});
 
 	$effect(() => {
 		if (role === 'storyteller') {
