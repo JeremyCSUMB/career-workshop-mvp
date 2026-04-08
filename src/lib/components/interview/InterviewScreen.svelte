@@ -6,7 +6,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
-	let { onComplete, onChangeRoom } = $props();
+	let { onComplete, onChangeRoom, resumeRoomData = null } = $props();
 
 	const MIN_CHARS = 80;
 
@@ -73,6 +73,32 @@
 		if (questionTurn === 1) return 'Switch Roles';
 		return `Continue to Question ${currentQuestion + 1}`;
 	});
+
+	// Restore AI data from server on resume (followup/profile phases)
+	if (browser && resumeRoomData && phase !== 'notes') {
+		const currentRound = $interviewState.round;
+		if (phase === 'followup') {
+			const aiFollowUps = resumeRoomData.aiFollowUps || [];
+			const lastEntry = aiFollowUps.length > 0 ? aiFollowUps[aiFollowUps.length - 1] : null;
+			if (lastEntry && lastEntry.questions && lastEntry.questions.length > 0) {
+				followupQuestions = lastEntry.questions;
+			} else {
+				phase = 'notes';
+			}
+		} else if (phase === 'profile') {
+			const profiles = resumeRoomData.capabilityProfiles || [];
+			const roundProfile = profiles.find((p) => p.round === currentRound);
+			if (roundProfile) {
+				profileData = {
+					summary: roundProfile.summary || 'Profile generated.',
+					capabilities: roundProfile.capabilities || []
+				};
+				profileVisible = true;
+			} else {
+				phase = 'notes';
+			}
+		}
+	}
 
 	function debouncedSave(text, roundLabel) {
 		clearTimeout(debounceTimer);

@@ -18,6 +18,7 @@
 	let codeFromUrl = $state(false);
 	let sessionEndedMessage = $state('');
 	let claimState = $state(null); // { roomId, students } when a 409 with names is received
+	let resumeRoomData = $state(null); // { aiFollowUps, capabilityProfiles } from server on resume
 
 	// Nudge state
 	let nudgeText = $state('');
@@ -332,6 +333,12 @@
 				const resumeRound = Math.min(currentRound, $interviewState.totalRounds);
 				interviewState.update((st) => ({ ...st, students, round: resumeRound }));
 
+				// Store AI data for InterviewScreen to restore followup/profile state
+				resumeRoomData = {
+					aiFollowUps: room.aiFollowUps || [],
+					capabilityProfiles: room.capabilityProfiles || []
+				};
+
 				if (students.length >= 2) {
 					startInterview();
 				} else {
@@ -399,7 +406,7 @@
 			{:else if screen === 'waiting'}
 				<WaitingScreen students={$interviewState.students} onChangeRoom={handleChangeRoom} />
 			{:else if screen === 'interview'}
-				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} />
+				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} {resumeRoomData} />
 			{:else if screen === 'complete'}
 				<CompleteScreen onChangeRoom={handleChangeRoom} onSwitchSession={handleSwitchSession} onLeave={handleLeave} />
 			{:else if screen === 'ended'}
