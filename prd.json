@@ -1,0 +1,141 @@
+{
+  "project": "Career Workshop MVP",
+  "branchName": "ralph/session-persistence",
+  "description": "Resilient Session Persistence on Browser Refresh - Students resume their exact interview state after refresh or tab-close, with no disruption to their partner",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Persist interview sub-phase to localStorage",
+      "description": "As a student, I want my interview phase (notes/followup/profile) to survive a refresh so I don't restart the round from scratch.",
+      "acceptanceCriteria": [
+        "interviewPhase (notes | followup | profile) is saved to localStorage as ws_interviewPhase on every phase change inside InterviewScreen",
+        "On mount, InterviewScreen reads ws_interviewPhase and restores the correct sub-phase instead of defaulting to 'notes'",
+        "If the stored phase is 'followup' or 'profile', the component skips the notes submission step",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Persist textarea content to localStorage on every keystroke",
+      "description": "As a student (interviewer), I want my notes and follow-up text preserved locally so a refresh doesn't lose my work.",
+      "acceptanceCriteria": [
+        "notesText is saved to localStorage key ws_notesText on every input event",
+        "followupText is saved to localStorage key ws_followupText on every input event",
+        "On mount, InterviewScreen restores notesText and followupText from localStorage",
+        "When advancing to the next round (handleNextRound), both localStorage keys are cleared",
+        "When leaving the session (handleLeave, handleSwitchSession), both keys are cleared",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add beforeunload warning for unsaved work",
+      "description": "As a student, I want to be warned before accidentally closing or refreshing the tab when I have unsaved interview notes.",
+      "acceptanceCriteria": [
+        "A beforeunload event listener is active when screen === 'interview' and either textarea has content",
+        "The browser shows its native 'Leave site?' confirmation dialog",
+        "The listener is removed when leaving the interview screen or when the session completes",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Clear stale localStorage on session end or room change",
+      "description": "As a student, I don't want leftover localStorage from a previous session to interfere with joining a new one.",
+      "acceptanceCriteria": [
+        "handleLeave, handleSwitchSession, and handleChangeRoom clear all ws_* keys including ws_interviewPhase, ws_notesText, ws_followupText",
+        "The reset() method in the interview store clears ws_interviewPhase, ws_notesText, ws_followupText",
+        "When the session ends (server returns ended: true), ephemeral keys are cleared",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Include submissions and AI data in workshop-room response",
+      "description": "As a developer, I need the workshop-room GET endpoint to return submissions, aiFollowUps, and capabilityProfiles so the client can restore mid-round state on refresh.",
+      "acceptanceCriteria": [
+        "workshop-room GET response includes the submissions array from the room blob",
+        "workshop-room GET response includes the aiFollowUps object from the room blob",
+        "workshop-room GET response includes the capabilityProfiles object from the room blob",
+        "Existing clients that don't use these fields are not broken",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Check netlify/functions/workshop-room.js — the room blob already has this data. If the function filters fields before responding, add them to the response."
+    },
+    {
+      "id": "US-006",
+      "title": "Fix resume path to call workshop-join for re-registration",
+      "description": "As a student who refreshed, I want to skip entry/room-picker and land back in my interview by re-registering via workshop-join on mount.",
+      "acceptanceCriteria": [
+        "On mount, if sessionId, roomId, and studentName exist in localStorage, the resume path calls workshop-join (not just workshop-room) to re-register the student",
+        "workshop-join returns rejoined: true and the full room state including currentRound",
+        "The resume path then calls workshop-room to fetch full state including submissions and AI data",
+        "The student lands directly on the interview or waiting screen (never entry or rooms)",
+        "Students, round, role, and partnerName are restored from the server response",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "This is the core rejoin fix. The current onMount resume path at line ~292 in +page.svelte only calls workshop-room. It should call workshop-join first, then workshop-room for full data."
+    },
+    {
+      "id": "US-007",
+      "title": "Restore follow-up questions and profile data from server on resume",
+      "description": "As a student who refreshed mid-followup or mid-profile, I want to see the AI-generated follow-up questions and profile data that were already generated.",
+      "acceptanceCriteria": [
+        "On resume, if ws_interviewPhase is 'followup', the client reads aiFollowUps from the workshop-room response and displays them without re-generating",
+        "On resume, if ws_interviewPhase is 'profile', the client reads capabilityProfiles for the current round from workshop-room response and displays the profile card",
+        "If server has no stored AI data for the current round, fall back to the notes phase gracefully",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Depends on US-005 (server returns AI data) and US-001 (interviewPhase persisted)."
+    },
+    {
+      "id": "US-008",
+      "title": "Restore notes from server when localStorage is empty (tab-close case)",
+      "description": "As a student who closed their tab and returns later, I want to recover my previously auto-saved notes from the server even if localStorage was cleared.",
+      "acceptanceCriteria": [
+        "On resume, if localStorage has no ws_notesText but server submissions include round{N}-notes, populate notesText with the server value",
+        "On resume, if localStorage has no ws_followupText but server submissions include round{N}-followup, populate followupText with the server value",
+        "localStorage values take priority over server values when both exist (localStorage is more recent)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Depends on US-005 (server returns submissions in workshop-room response)."
+    },
+    {
+      "id": "US-009",
+      "title": "Ensure partner is not disrupted by a rejoin",
+      "description": "As the partner of a student who refreshed, I want my session to continue without interruption — no 'waiting for partner' screen, no stale state.",
+      "acceptanceCriteria": [
+        "When a student rejoins via refresh, workshop-join rejoin path does NOT remove or re-add them — it is a no-op for room state and returns the existing room",
+        "The partner's polling (workshop-room) continues to see 2 students throughout the rejoin window",
+        "The partner does not regress to the waiting screen during or after the other student's refresh",
+        "If the heartbeat lapses during refresh (>15s), there is no 'partner disconnected' state change triggered",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Mostly a verification story. workshop-join already returns the room unchanged on rejoin. The key risk is the client-side polling seeing a transient state with <2 students."
+    }
+  ]
+}
