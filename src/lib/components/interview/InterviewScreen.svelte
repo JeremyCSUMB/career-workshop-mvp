@@ -277,6 +277,19 @@
 		}, 5000);
 	}
 
+	// Warn before closing/refreshing when textareas have content
+	$effect(() => {
+		if (!browser) return;
+		const hasContent = notesText.trim().length > 0 || followupText.trim().length > 0;
+		if (hasContent) {
+			const handler = (/** @type {BeforeUnloadEvent} */ e) => {
+				e.preventDefault();
+			};
+			window.addEventListener('beforeunload', handler);
+			return () => window.removeEventListener('beforeunload', handler);
+		}
+	});
+
 	// Persist interview sub-phase to localStorage on every change
 	$effect(() => {
 		if (browser) {
