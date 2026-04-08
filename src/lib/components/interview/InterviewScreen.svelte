@@ -100,6 +100,24 @@
 		}
 	}
 
+	// Restore notes/followup text from server submissions when localStorage is empty (tab-close case)
+	if (browser && resumeRoomData) {
+		const submissions = resumeRoomData.submissions || [];
+		const currentRound = $interviewState.round;
+		if (!notesText) {
+			const notesSubmission = submissions.find((s) => s.round === `round${currentRound}-notes`);
+			if (notesSubmission && notesSubmission.notes) {
+				notesText = notesSubmission.notes;
+			}
+		}
+		if (!followupText) {
+			const followupSubmission = submissions.find((s) => s.round === `round${currentRound}-followup`);
+			if (followupSubmission && followupSubmission.notes) {
+				followupText = followupSubmission.notes;
+			}
+		}
+	}
+
 	function debouncedSave(text, roundLabel) {
 		clearTimeout(debounceTimer);
 		debounceTimer = setTimeout(() => {

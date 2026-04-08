@@ -333,10 +333,11 @@
 				const resumeRound = Math.min(currentRound, $interviewState.totalRounds);
 				interviewState.update((st) => ({ ...st, students, round: resumeRound }));
 
-				// Store AI data for InterviewScreen to restore followup/profile state
+				// Store server data for InterviewScreen to restore followup/profile/notes state
 				resumeRoomData = {
 					aiFollowUps: room.aiFollowUps || [],
-					capabilityProfiles: room.capabilityProfiles || []
+					capabilityProfiles: room.capabilityProfiles || [],
+					submissions: room.submissions || []
 				};
 
 				if (students.length >= 2) {
