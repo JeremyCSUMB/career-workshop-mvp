@@ -142,6 +142,12 @@
 		goToScreen('interview');
 	}
 
+	function clearEphemeralKeys() {
+		localStorage.removeItem('ws_interviewPhase');
+		localStorage.removeItem('ws_notesText');
+		localStorage.removeItem('ws_followupText');
+	}
+
 	function stopAllPolling() {
 		if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
 		if (nudgeInterval) { clearInterval(nudgeInterval); nudgeInterval = null; }
@@ -194,6 +200,7 @@
 			}
 		} catch (err) {
 			if (err.message && err.message.includes('session has ended')) {
+				clearEphemeralKeys();
 				sessionEndedMessage = 'This session has ended. You can no longer join.';
 				goToScreen('ended');
 			} else if (err.status === 409 && err.data?.students) {
@@ -206,8 +213,7 @@
 
 	async function handleChangeRoom() {
 		stopAllPolling();
-		localStorage.removeItem('ws_notesText');
-		localStorage.removeItem('ws_followupText');
+		clearEphemeralKeys();
 		try {
 			await api('workshop-leave', {
 				body: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId, studentName: $interviewState.studentName }
@@ -234,8 +240,7 @@
 			}).catch(() => {});
 		}
 		stopAllPolling();
-		localStorage.removeItem('ws_notesText');
-		localStorage.removeItem('ws_followupText');
+		clearEphemeralKeys();
 		const savedName = $interviewState.studentName;
 		interviewState.reset();
 		codeFromUrl = false;
@@ -246,8 +251,7 @@
 
 	function handleLeave() {
 		stopAllPolling();
-		localStorage.removeItem('ws_notesText');
-		localStorage.removeItem('ws_followupText');
+		clearEphemeralKeys();
 		interviewState.reset();
 		codeFromUrl = false;
 		goToScreen('entry');
@@ -268,6 +272,7 @@
 				handleRoomsFound([]); // Will trigger find rooms
 				api('workshop-rooms', { params: { sessionId: codeParam } }).then((data) => {
 					if (data.ended) {
+						clearEphemeralKeys();
 						sessionEndedMessage = 'This session has ended.';
 						goToScreen('ended');
 						return;
@@ -301,6 +306,7 @@
 			}).then((data) => {
 				if (data.ended) {
 					stopAllPolling();
+					clearEphemeralKeys();
 					sessionEndedMessage = 'This session has ended.';
 					goToScreen('ended');
 					return;
@@ -327,6 +333,7 @@
 		if (s.phase === 'rooms') {
 			api('workshop-rooms', { params: { sessionId: s.sessionId } }).then((data) => {
 				if (data.ended) {
+					clearEphemeralKeys();
 					sessionEndedMessage = 'This session has ended.';
 					goToScreen('ended');
 					return;

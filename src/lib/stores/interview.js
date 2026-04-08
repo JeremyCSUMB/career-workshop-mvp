@@ -47,7 +47,7 @@ function createInterviewStore() {
 		/** Reset to clean entry state */
 		reset() {
 			if (browser) {
-				['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_totalRounds', 'ws_prompts'].forEach((k) => localStorage.removeItem(k));
+				['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_totalRounds', 'ws_prompts', 'ws_interviewPhase', 'ws_notesText', 'ws_followupText'].forEach((k) => localStorage.removeItem(k));
 			}
 			set({
 				sessionId: '',
