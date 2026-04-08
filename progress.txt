@@ -11,6 +11,9 @@
 - `makeEmptyRoom` in `workshop-session.js` initializes the room shape — add new fields there for new rooms
 - Old rooms may lack `capabilityProfiles` (plural) — `workshop-room.js` normalizes this on read
 - Resume path must call `workshop-join` before `workshop-room` — join re-registers the student, room fetches full data (submissions, AI data)
+- `aiFollowUps` is array of `{ questions, timestamp }`, `capabilityProfiles` is array of `{ summary, capabilities, studentName, round }` — match by round for profile, use last entry for followups
+- Pass transient server data via props to child components rather than persisting to the interview store/localStorage
+- Submissions use round labels like `round1-notes`, `round1-followup` — match with `round${currentRound}-notes` pattern; the `notes` field holds the text
 
 ---
 
@@ -84,4 +87,44 @@
   - `workshop-join` with an existing student name is a no-op for room state — it returns the room unchanged with `rejoined: true`, so it's safe to call on every resume
   - The two-step resume pattern (join then room) is needed because join re-registers but doesn't return submissions/AI data, while room returns full data but doesn't re-register
   - `currentRound` comes from the join response room object, not from the room poll response — use join's value as the source of truth for round
+---
+
+## 2026-04-08 - US-007
+- Implemented: Restore follow-up questions and profile data from server on resume
+- Added `resumeRoomData` prop to InterviewScreen, populated during resume path in `+page.svelte`
+- On component init, if phase is 'followup', reads last `aiFollowUps` entry's questions from server data
+- On component init, if phase is 'profile', finds matching `capabilityProfiles` entry by round number and restores `profileData` + `profileVisible`
+- Falls back to 'notes' phase gracefully if no AI data exists for the current round
+- Files changed: `src/lib/components/interview/InterviewScreen.svelte`, `src/routes/interview/+page.svelte`
+- **Learnings for future iterations:**
+  - `aiFollowUps` is an array of `{ questions: [...], timestamp }` entries — use the last entry for the most recent followup data
+  - `capabilityProfiles` is an array of `{ summary, capabilities, studentName, round, generatedAt }` — match by `round` to find the right profile
+  - Svelte 5 `state_referenced_locally` warnings are expected when reading initial values in a one-time init block — the code is correct
+  - Passing server data via props (rather than storing in the interview store) avoids unnecessary localStorage persistence of large AI payloads
+---
+
+## 2026-04-08 - US-008
+- Implemented: Restore notes and followup text from server submissions when localStorage is empty (tab-close case)
+- Added `submissions` to `resumeRoomData` in `+page.svelte` resume path
+- In `InterviewScreen.svelte`, after AI data restore block, added a check: if `notesText`/`followupText` are empty, look for matching `round{N}-notes`/`round{N}-followup` submissions from the server
+- localStorage values take priority (checked via `!notesText` / `!followupText` — only populate from server when empty)
+- Files changed: `src/lib/components/interview/InterviewScreen.svelte`, `src/routes/interview/+page.svelte`
+- **Learnings for future iterations:**
+  - Submissions are stored with round labels like `round1-notes`, `round1-followup` — match using `round${currentRound}-notes` pattern
+  - The `notes` field in a submission object contains the actual text content
+  - The one-time init pattern (top-level `if (browser && resumeRoomData)`) works well for server fallback — no need for `$effect` since this only runs once on mount
+---
+
+## 2026-04-08 - US-009
+- Verified: Partner is not disrupted by a student's rejoin (refresh/tab-close)
+- `workshop-join` rejoin path (lines 65-70) is a no-op for room state — returns existing room with `rejoined: true`, no student removal/re-add
+- Partner's polling (`workshop-room`) always sees 2 students since rejoin doesn't modify the room blob
+- No code path regresses the partner from interview to waiting — `startWaitingPoll` only runs on the waiting screen, storyteller poll only checks `currentRound`
+- Heartbeat is room-level (separate blob key), no per-student disconnect mechanism exists — heartbeat lapse during refresh has no side effects
+- Typecheck passes: 0 errors
+- Files changed: `prd.json` (passes: true)
+- **Learnings for future iterations:**
+  - `workshop-join` rejoin is inherently safe — it's a read-only operation for room state when student is already in the room
+  - Heartbeat writes to `heartbeat:${sessionId}:${roomId}`, completely separate from room blob — no read-modify-write race possible
+  - During interview screen, neither partner polls for student count changes — only `startWaitingPoll` (waiting screen) and initial join/resume paths check student count
 ---
