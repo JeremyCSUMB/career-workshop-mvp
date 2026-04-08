@@ -29,8 +29,8 @@
 
 	// Interview phases: 'notes' | 'followup' | 'profile'
 	let phase = $state(browser ? (localStorage.getItem('ws_interviewPhase') || 'notes') : 'notes');
-	let notesText = $state('');
-	let followupText = $state('');
+	let notesText = $state(browser ? (localStorage.getItem('ws_notesText') || '') : '');
+	let followupText = $state(browser ? (localStorage.getItem('ws_followupText') || '') : '');
 	let followupQuestions = $state([]);
 	let profileData = $state(null);
 	let customTags = $state([]);
@@ -201,6 +201,11 @@
 			onComplete();
 			return;
 		}
+		// Clear persisted textarea content for the completed round
+		if (browser) {
+			localStorage.removeItem('ws_notesText');
+			localStorage.removeItem('ws_followupText');
+		}
 		// Reset for next round
 		phase = 'notes';
 		notesText = '';
@@ -237,6 +242,11 @@
 				if (currentRound && currentRound > $interviewState.round) {
 					clearInterval(storytellerPollInterval);
 					storytellerPollInterval = null;
+					// Clear persisted textarea content for the completed round
+					if (browser) {
+						localStorage.removeItem('ws_notesText');
+						localStorage.removeItem('ws_followupText');
+					}
 					// Reset local phase
 					phase = 'notes';
 					notesText = '';
@@ -271,6 +281,19 @@
 	$effect(() => {
 		if (browser) {
 			localStorage.setItem('ws_interviewPhase', phase);
+		}
+	});
+
+	// Persist textarea content to localStorage on every change
+	$effect(() => {
+		if (browser) {
+			localStorage.setItem('ws_notesText', notesText);
+		}
+	});
+
+	$effect(() => {
+		if (browser) {
+			localStorage.setItem('ws_followupText', followupText);
 		}
 	});
 

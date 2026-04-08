@@ -206,6 +206,8 @@
 
 	async function handleChangeRoom() {
 		stopAllPolling();
+		localStorage.removeItem('ws_notesText');
+		localStorage.removeItem('ws_followupText');
 		try {
 			await api('workshop-leave', {
 				body: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId, studentName: $interviewState.studentName }
@@ -232,6 +234,8 @@
 			}).catch(() => {});
 		}
 		stopAllPolling();
+		localStorage.removeItem('ws_notesText');
+		localStorage.removeItem('ws_followupText');
 		const savedName = $interviewState.studentName;
 		interviewState.reset();
 		codeFromUrl = false;
@@ -242,6 +246,8 @@
 
 	function handleLeave() {
 		stopAllPolling();
+		localStorage.removeItem('ws_notesText');
+		localStorage.removeItem('ws_followupText');
 		interviewState.reset();
 		codeFromUrl = false;
 		goToScreen('entry');
