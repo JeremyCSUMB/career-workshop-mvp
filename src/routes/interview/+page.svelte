@@ -301,32 +301,53 @@
 		}
 
 		if (s.phase === 'interview' || s.phase === 'waiting') {
-			api('workshop-room', {
-				params: { sessionId: s.sessionId, roomId: s.roomId }
-			}).then((data) => {
-				if (data.ended) {
+			// Re-register via workshop-join first, then fetch full data via workshop-room
+			api('workshop-join', {
+				body: { sessionId: s.sessionId, roomId: s.roomId, studentName: s.studentName }
+			}).then(async (joinData) => {
+				const joinRoom = joinData.room || joinData;
+				const currentRound = joinRoom.currentRound || 1;
+
+				if (currentRound > $interviewState.totalRounds) {
+					interviewState.update((st) => ({ ...st, round: st.totalRounds }));
+					goToScreen('complete');
+					return;
+				}
+
+				// Fetch full room state (includes submissions, aiFollowUps, capabilityProfiles)
+				const roomData = await api('workshop-room', {
+					params: { sessionId: s.sessionId, roomId: s.roomId }
+				});
+
+				if (roomData.ended) {
 					stopAllPolling();
 					clearEphemeralKeys();
 					sessionEndedMessage = 'This session has ended.';
 					goToScreen('ended');
 					return;
 				}
-				const room = data.room || data;
+
+				const room = roomData.room || roomData;
 				const students = extractStudentNames(room.students);
-				const serverRound = room.currentRound || 1;
-				const resumeRound = Math.min(serverRound, $interviewState.totalRounds);
+				const resumeRound = Math.min(currentRound, $interviewState.totalRounds);
 				interviewState.update((st) => ({ ...st, students, round: resumeRound }));
-				if (serverRound > $interviewState.totalRounds) {
-					goToScreen('complete');
-					return;
-				}
+
 				if (students.length >= 2) {
 					startInterview();
 				} else {
 					goToScreen('waiting');
 					startWaitingPoll();
 				}
-			}).catch(() => goToScreen('entry'));
+			}).catch((err) => {
+				if (err.message && err.message.includes('session has ended')) {
+					stopAllPolling();
+					clearEphemeralKeys();
+					sessionEndedMessage = 'This session has ended.';
+					goToScreen('ended');
+				} else {
+					goToScreen('entry');
+				}
+			});
 			return;
 		}
 
