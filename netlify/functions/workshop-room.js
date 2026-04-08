@@ -46,6 +46,13 @@ exports.handler = async (event) => {
       return json(404, { error: 'Room not found' });
     }
 
+    // Normalize fields for older rooms missing newer keys
+    if (!Array.isArray(room.submissions)) room.submissions = [];
+    if (!Array.isArray(room.aiFollowUps)) room.aiFollowUps = [];
+    if (!Array.isArray(room.capabilityProfiles)) {
+      room.capabilityProfiles = room.capabilityProfile ? [room.capabilityProfile] : [];
+    }
+
     return json(200, { room, ended });
   } catch (error) {
     console.error('Get room error:', error);

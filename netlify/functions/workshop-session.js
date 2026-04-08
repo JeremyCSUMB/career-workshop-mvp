@@ -33,6 +33,7 @@ function makeEmptyRoom(sessionId, roomId) {
     submissions: [],
     aiFollowUps: [],
     capabilityProfile: null,
+    capabilityProfiles: [],
     classifications: [],
     nudges: [],
   };
