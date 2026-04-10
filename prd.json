@@ -95,7 +95,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Keep the page simple and focused. Use existing app styles/colors for consistency."
     },
     {

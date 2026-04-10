@@ -78,3 +78,18 @@
   - To clear a cookie, set the same cookie name with `Max-Age=0` and matching Path/Domain attributes from when it was set
   - Cookie attributes in auth-callback: `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800` — logout must match all except Max-Age
 ---
+
+## 2026-04-10 - US-006
+- Created /login page at src/routes/login/+page.svelte
+- Page displays "Career Intelligence Workshop" branding and "Sign in to join the workshop" subtitle
+- Google sign-in button with official Google 'G' multi-color logo SVG, styled to match existing design system
+- Button navigates to /.netlify/functions/auth-login, passing redirect param if present in URL
+- On mount, checks /.netlify/functions/auth-session — redirects to /interview if already authenticated
+- Uses existing CSS variables (--color-surface, --color-border, etc.) for dark mode compatibility
+- Files changed: src/routes/login/+page.svelte (new)
+- **Learnings for future iterations:**
+  - Use `$derived()` to reactively read URL search params from `$page.url.searchParams`
+  - The `.ws-card` and `.ws-container` classes provide the standard centered card layout — use max-width on the card for narrower forms
+  - Google branding SVG paths for the 'G' logo: 4 paths with colors #4285F4, #34A853, #FBBC05, #EA4335
+  - Use `window.location.href` for navigation to Netlify functions (not SvelteKit `goto`) since they're outside the SvelteKit router
+---
