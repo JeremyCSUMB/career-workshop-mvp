@@ -31,7 +31,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "The redirect_uri should point to /.netlify/functions/auth-callback. The state param preserves the original URL the student was trying to reach."
     },
     {

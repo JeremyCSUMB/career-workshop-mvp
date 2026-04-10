@@ -27,3 +27,16 @@
   - Existing lib pattern: netlify/functions/lib/ holds shared utilities (anthropic.js, now jwt.js)
   - The jwt.js getSecret() reads from process.env.SESSION_SECRET — Netlify Dev must have this set
 ---
+
+## 2026-04-10 - US-002
+- Implemented auth-login Netlify Function at netlify/functions/auth-login.js
+- GET handler constructs Google OAuth 2.0 authorization URL with proper scopes (openid, profile, email)
+- Reads GOOGLE_CLIENT_ID from env, dynamically builds redirect_uri from request host/protocol
+- Accepts optional `redirect` query param, passes it as OAuth `state` parameter
+- Returns 302 redirect to Google consent screen
+- Files changed: netlify/functions/auth-login.js (new)
+- **Learnings for future iterations:**
+  - Use `event.headers.host` and `event.headers['x-forwarded-proto']` to dynamically build redirect URIs (works in both local dev and production)
+  - Google OAuth authorization endpoint: `https://accounts.google.com/o/oauth2/v2/auth`
+  - The redirect_uri in auth-login must match exactly what auth-callback uses — both should derive it the same way
+---
