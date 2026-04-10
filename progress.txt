@@ -68,3 +68,13 @@
   - The parseCookies helper in auth-session.js can be extracted to lib/ if more functions need cookie parsing
   - verifyJwt throws on invalid/expired tokens — wrap in try/catch and return 401
 ---
+
+## 2026-04-10 - US-005
+- Implemented auth-logout Netlify Function at netlify/functions/auth-logout.js
+- POST handler clears the 'session' cookie by setting it with Max-Age=0 and matching attributes (HttpOnly, Secure, SameSite=Lax, Path=/)
+- Returns 200 with `{ success: true }`
+- Files changed: netlify/functions/auth-logout.js (new)
+- **Learnings for future iterations:**
+  - To clear a cookie, set the same cookie name with `Max-Age=0` and matching Path/Domain attributes from when it was set
+  - Cookie attributes in auth-callback: `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800` — logout must match all except Max-Age
+---
