@@ -17,6 +17,9 @@
 - SvelteKit server load functions: use `cookies.get('session')` for cookie access, `throw redirect(302, url)` for redirects
 - `jsonwebtoken` works as ES module import in SvelteKit server files — SvelteKit handles CJS interop
 - User data from +page.server.js load is available via `let { data } = $props()` in Svelte 5 pages
+- Shared cookie parser lives in `netlify/functions/lib/cookies.js` — use `parseCookies(event.headers.cookie)` in any Netlify function
+- Room blobs have optional `studentEmails` field — old rooms may lack it, always initialize with `if (!room.studentEmails) room.studentEmails = {}`
+- User profile blobs stored at `user:{email}` key — contain name, email, picture, authenticatedAt
 
 ---
 
@@ -121,4 +124,18 @@
   - `nameInput = $state(googleName)` captures the initial prop value — this is fine since googleName doesn't change after mount
   - The interview store's `update()` method auto-persists to localStorage, so setting `studentName` via `interviewState.update()` automatically writes `ws_studentName` to localStorage
   - EntryScreen validation still works with pre-filled googleName since `nameInput` is initialized to it — no need to change validation logic
+---
+
+## 2026-04-10 - US-009
+- Stored authenticated user profile in Netlify Blobs at `user:{email}` key in auth-callback (name, email, picture, authenticatedAt)
+- Extracted parseCookies to shared lib at netlify/functions/lib/cookies.js (used by auth-session and workshop-join)
+- Updated workshop-join to parse session cookie, extract email from JWT, and store in room's `studentEmails` field
+- Room blob now has optional `studentEmails: { student1: "email", student2: "email" }` mirroring the `students` structure
+- Email is stored on both initial join and rejoin if authenticated
+- Files changed: netlify/functions/lib/cookies.js (new), netlify/functions/auth-callback.js, netlify/functions/auth-session.js, netlify/functions/workshop-join.js
+- **Learnings for future iterations:**
+  - Cookie parsing was duplicated in auth-session — extracted to lib/cookies.js for reuse across functions
+  - Non-fatal blob operations (like storing user profile) should be wrapped in try/catch to avoid blocking the main flow
+  - Room blobs may lack `studentEmails` from older sessions — always guard with `if (!room.studentEmails)` before accessing
+  - The `verifyJwt` function throws on invalid tokens — wrap in try/catch when the caller should degrade gracefully (e.g., unauthenticated join)
 ---

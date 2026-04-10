@@ -142,7 +142,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "workshop-join already receives the student name. Now it also needs to parse the session cookie to get the email and associate it with the student in the room."
     },
     {
