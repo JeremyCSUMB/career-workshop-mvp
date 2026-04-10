@@ -55,3 +55,16 @@
   - The `state` parameter round-trips through Google OAuth unchanged — use it to preserve the original redirect path with query params
   - Cookie attributes must include `Path=/` so it's sent on all routes (including /.netlify/functions/ paths)
 ---
+
+## 2026-04-10 - US-004
+- Implemented auth-session Netlify Function at netlify/functions/auth-session.js
+- GET handler parses the `session` cookie from request headers
+- Verifies JWT using verifyJwt from shared jwt.js utility
+- Returns 200 with `{ authenticated: true, user: { name, email, picture } }` if valid
+- Returns 401 with `{ authenticated: false }` if cookie is missing or JWT is invalid
+- Files changed: netlify/functions/auth-session.js (new)
+- **Learnings for future iterations:**
+  - Cookie parsing: `event.headers.cookie` contains all cookies as a semicolon-separated string — need a helper to parse name=value pairs
+  - The parseCookies helper in auth-session.js can be extracted to lib/ if more functions need cookie parsing
+  - verifyJwt throws on invalid/expired tokens — wrap in try/catch and return 401
+---
