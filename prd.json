@@ -1,141 +1,197 @@
 {
   "project": "Career Workshop MVP",
-  "branchName": "ralph/session-persistence",
-  "description": "Resilient Session Persistence on Browser Refresh - Students resume their exact interview state after refresh or tab-close, with no disruption to their partner",
+  "branchName": "ralph/google-oauth",
+  "description": "Google OAuth Sign-In - Gate /interview access behind Google authentication, auto-fill student name, show authenticated users on instructor dashboard",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Persist interview sub-phase to localStorage",
-      "description": "As a student, I want my interview phase (notes/followup/profile) to survive a refresh so I don't restart the round from scratch.",
+      "title": "Add JWT utility and session secret environment variable",
+      "description": "As a developer, I need a shared utility for signing and verifying JWTs so the auth functions can create and validate session tokens.",
       "acceptanceCriteria": [
-        "interviewPhase (notes | followup | profile) is saved to localStorage as ws_interviewPhase on every phase change inside InterviewScreen",
-        "On mount, InterviewScreen reads ws_interviewPhase and restores the correct sub-phase instead of defaulting to 'notes'",
-        "If the stored phase is 'followup' or 'profile', the component skips the notes submission step",
+        "Create netlify/functions/lib/jwt.js with signJwt(payload) and verifyJwt(token) functions using the jsonwebtoken npm package",
+        "JWT is signed with SESSION_SECRET env var, expires in 8 hours",
+        "Add jsonwebtoken to package.json dependencies",
+        "Add SESSION_SECRET to .env.example (not .env) as a placeholder",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "This is a foundational utility used by auth-callback (US-003) and auth-session (US-004). Keep it minimal — just sign and verify."
     },
     {
       "id": "US-002",
-      "title": "Persist textarea content to localStorage on every keystroke",
-      "description": "As a student (interviewer), I want my notes and follow-up text preserved locally so a refresh doesn't lose my work.",
+      "title": "Create auth-login Netlify Function to initiate Google OAuth flow",
+      "description": "As a student, I need an endpoint that redirects me to Google's consent screen so I can sign in with my Google account.",
       "acceptanceCriteria": [
-        "notesText is saved to localStorage key ws_notesText on every input event",
-        "followupText is saved to localStorage key ws_followupText on every input event",
-        "On mount, InterviewScreen restores notesText and followupText from localStorage",
-        "When advancing to the next round (handleNextRound), both localStorage keys are cleared",
-        "When leaving the session (handleLeave, handleSwitchSession), both keys are cleared",
+        "Netlify Function at netlify/functions/auth-login.js handles GET requests",
+        "Constructs Google OAuth 2.0 authorization URL with client_id, redirect_uri, response_type=code, scope=openid+profile+email",
+        "Reads GOOGLE_CLIENT_ID from environment variables",
+        "Accepts an optional 'redirect' query param and passes it through as OAuth state parameter (for preserving ?code= workshop session code)",
+        "Returns 302 redirect to the Google authorization URL",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "The redirect_uri should point to /.netlify/functions/auth-callback. The state param preserves the original URL the student was trying to reach."
     },
     {
       "id": "US-003",
-      "title": "Add beforeunload warning for unsaved work",
-      "description": "As a student, I want to be warned before accidentally closing or refreshing the tab when I have unsaved interview notes.",
+      "title": "Create auth-callback Netlify Function to handle OAuth response",
+      "description": "As a developer, I need an endpoint that exchanges Google's authorization code for tokens, extracts the user profile, and sets a session cookie.",
       "acceptanceCriteria": [
-        "A beforeunload event listener is active when screen === 'interview' and either textarea has content",
-        "The browser shows its native 'Leave site?' confirmation dialog",
-        "The listener is removed when leaving the interview screen or when the session completes",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Netlify Function at netlify/functions/auth-callback.js handles GET requests",
+        "Exchanges the authorization code for tokens by POSTing to https://oauth2.googleapis.com/token",
+        "Extracts name, email, and picture from the Google ID token (decode JWT payload) or calls the userinfo endpoint",
+        "Creates a signed JWT containing name, email, and picture using the jwt utility from US-001",
+        "Sets an HTTP-only, Secure, SameSite=Lax cookie named 'session' with the JWT, max-age 28800 (8 hours)",
+        "Redirects to /interview (or to the URL from the state parameter if present, preserving query params like ?code=)",
+        "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Uses GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars. The redirect_uri must match what was used in auth-login."
     },
     {
       "id": "US-004",
-      "title": "Clear stale localStorage on session end or room change",
-      "description": "As a student, I don't want leftover localStorage from a previous session to interfere with joining a new one.",
+      "title": "Create auth-session Netlify Function to check authentication status",
+      "description": "As a developer, I need an endpoint that returns the current user's profile if authenticated or 401 if not, so the frontend can check auth state.",
       "acceptanceCriteria": [
-        "handleLeave, handleSwitchSession, and handleChangeRoom clear all ws_* keys including ws_interviewPhase, ws_notesText, ws_followupText",
-        "The reset() method in the interview store clears ws_interviewPhase, ws_notesText, ws_followupText",
-        "When the session ends (server returns ended: true), ephemeral keys are cleared",
+        "Netlify Function at netlify/functions/auth-session.js handles GET requests",
+        "Parses the 'session' cookie from the request headers",
+        "Verifies the JWT using the jwt utility from US-001",
+        "If valid, returns 200 with JSON body: { authenticated: true, user: { name, email, picture } }",
+        "If missing or invalid, returns 401 with JSON body: { authenticated: false }",
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Include submissions and AI data in workshop-room response",
-      "description": "As a developer, I need the workshop-room GET endpoint to return submissions, aiFollowUps, and capabilityProfiles so the client can restore mid-round state on refresh.",
+      "title": "Create auth-logout Netlify Function",
+      "description": "As a student, I need an endpoint that clears my session cookie so I can sign out.",
       "acceptanceCriteria": [
-        "workshop-room GET response includes the submissions array from the room blob",
-        "workshop-room GET response includes the aiFollowUps object from the room blob",
-        "workshop-room GET response includes the capabilityProfiles object from the room blob",
-        "Existing clients that don't use these fields are not broken",
+        "Netlify Function at netlify/functions/auth-logout.js handles POST requests",
+        "Clears the 'session' cookie by setting it with max-age=0 and the same path/domain attributes",
+        "Returns 200 with JSON body: { success: true }",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Check netlify/functions/workshop-room.js — the room blob already has this data. If the function filters fields before responding, add them to the response."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Fix resume path to call workshop-join for re-registration",
-      "description": "As a student who refreshed, I want to skip entry/room-picker and land back in my interview by re-registering via workshop-join on mount.",
+      "title": "Create the /login page with Google sign-in button",
+      "description": "As a student, I want a login page with a 'Sign in with Google' button so I can authenticate before accessing the workshop.",
       "acceptanceCriteria": [
-        "On mount, if sessionId, roomId, and studentName exist in localStorage, the resume path calls workshop-join (not just workshop-room) to re-register the student",
-        "workshop-join returns rejoined: true and the full room state including currentRound",
-        "The resume path then calls workshop-room to fetch full state including submissions and AI data",
-        "The student lands directly on the interview or waiting screen (never entry or rooms)",
-        "Students, round, role, and partnerName are restored from the server response",
-        "Typecheck passes"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "This is the core rejoin fix. The current onMount resume path at line ~292 in +page.svelte only calls workshop-room. It should call workshop-join first, then workshop-room for full data."
-    },
-    {
-      "id": "US-007",
-      "title": "Restore follow-up questions and profile data from server on resume",
-      "description": "As a student who refreshed mid-followup or mid-profile, I want to see the AI-generated follow-up questions and profile data that were already generated.",
-      "acceptanceCriteria": [
-        "On resume, if ws_interviewPhase is 'followup', the client reads aiFollowUps from the workshop-room response and displays them without re-generating",
-        "On resume, if ws_interviewPhase is 'profile', the client reads capabilityProfiles for the current round from workshop-room response and displays the profile card",
-        "If server has no stored AI data for the current round, fall back to the notes phase gracefully",
+        "SvelteKit route exists at src/routes/login/+page.svelte",
+        "/login page displays the application name/branding and a brief instruction ('Sign in to join the workshop')",
+        "Page has a 'Sign in with Google' button styled per Google branding guidelines (Google 'G' logo, 'Sign in with Google' text)",
+        "Clicking the button navigates to /.netlify/functions/auth-login (passing the current redirect URL if a ?redirect param exists)",
+        "On mount, page calls /.netlify/functions/auth-session — if already authenticated, redirects to /interview automatically",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Keep the page simple and focused. Use existing app styles/colors for consistency."
+    },
+    {
+      "id": "US-007",
+      "title": "Protect the /interview route with auth redirect",
+      "description": "As the system, I need to redirect unauthenticated users from /interview to /login so only signed-in students can access the workshop.",
+      "acceptanceCriteria": [
+        "Add a +layout.server.js (or +page.server.js) for the /interview route that checks the session cookie",
+        "If the session cookie is missing or JWT is invalid, redirect to /login?redirect=/interview (preserving any query params like ?code=SESSION_CODE)",
+        "If authenticated, pass the user profile (name, email, picture) to the page via the load function",
+        "After successful login, the student is redirected back to /interview with their original query params intact",
+        "Typecheck passes"
+      ],
       "priority": 7,
-      "passes": true,
-      "notes": "Depends on US-005 (server returns AI data) and US-001 (interviewPhase persisted)."
+      "passes": false,
+      "notes": "The JWT verification should happen server-side in the load function. Import the jwt utility or decode inline since this runs in SvelteKit server context."
     },
     {
       "id": "US-008",
-      "title": "Restore notes from server when localStorage is empty (tab-close case)",
-      "description": "As a student who closed their tab and returns later, I want to recover my previously auto-saved notes from the server even if localStorage was cleared.",
+      "title": "Auto-fill student name from Google profile and skip name entry",
+      "description": "As a student, I want my name automatically filled from my Google account so I skip the manual name entry step.",
       "acceptanceCriteria": [
-        "On resume, if localStorage has no ws_notesText but server submissions include round{N}-notes, populate notesText with the server value",
-        "On resume, if localStorage has no ws_followupText but server submissions include round{N}-followup, populate followupText with the server value",
-        "localStorage values take priority over server values when both exist (localStorage is more recent)",
-        "Typecheck passes"
+        "The authenticated user's Google display name is passed from the layout/page load data to the interview page",
+        "On the interview page, if the user is authenticated and has a Google name, skip the EntryScreen name input step",
+        "The Google display name is stored in localStorage as ws_studentName for consistency with the existing flow",
+        "The name appears correctly in room picker, waiting screen, and interview screen",
+        "The EntryScreen still shows for the session code input step (only name entry is skipped)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Depends on US-005 (server returns submissions in workshop-room response)."
+      "passes": false,
+      "notes": "The existing flow uses ws_studentName in localStorage throughout. Set it from the Google profile so all downstream components work unchanged."
     },
     {
       "id": "US-009",
-      "title": "Ensure partner is not disrupted by a rejoin",
-      "description": "As the partner of a student who refreshed, I want my session to continue without interruption — no 'waiting for partner' screen, no stale state.",
+      "title": "Store authenticated user identity in Netlify Blobs",
+      "description": "As a developer, I need to persist each authenticated user's Google profile server-side so the instructor dashboard can show who signed in.",
       "acceptanceCriteria": [
-        "When a student rejoins via refresh, workshop-join rejoin path does NOT remove or re-add them — it is a no-op for room state and returns the existing room",
-        "The partner's polling (workshop-room) continues to see 2 students throughout the rejoin window",
-        "The partner does not regress to the waiting screen during or after the other student's refresh",
-        "If the heartbeat lapses during refresh (>15s), there is no 'partner disconnected' state change triggered",
+        "In auth-callback, after successful authentication, store the user profile in Netlify Blobs under key user:{email}",
+        "Stored data includes: name, email, picture (avatar URL), and authenticatedAt timestamp",
+        "In workshop-join, when a student joins a room, add their email to the room blob's students entry if authenticated",
+        "The email field is read from the session cookie JWT in workshop-join",
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Mostly a verification story. workshop-join already returns the room unchanged on rejoin. The key risk is the client-side polling seeing a transient state with <2 students."
+      "passes": false,
+      "notes": "workshop-join already receives the student name. Now it also needs to parse the session cookie to get the email and associate it with the student in the room."
+    },
+    {
+      "id": "US-010",
+      "title": "Display authenticated students on instructor dashboard",
+      "description": "As an instructor, I want to see which students have authenticated and their Google account info on my dashboard.",
+      "acceptanceCriteria": [
+        "Instructor dashboard shows a list/table of authenticated students for the current session",
+        "Each entry displays: student name, email, circular avatar thumbnail, and sign-in time",
+        "Only students who have both authenticated AND joined a session room are shown",
+        "List updates on dashboard refresh or poll cycle",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "The dashboard already polls for room data. Extend the room data response to include student emails, then look up user:{email} blobs for avatar and sign-in time."
+    },
+    {
+      "id": "US-011",
+      "title": "Add sign-out button to the interview page",
+      "description": "As a student, I want a sign-out button so I can switch Google accounts or end my authenticated session.",
+      "acceptanceCriteria": [
+        "A small, unobtrusive 'Sign out' button is visible in the top-right corner of the /interview page",
+        "Clicking it calls /.netlify/functions/auth-logout (POST)",
+        "After logout, clears ws_studentName and other ws_* localStorage keys",
+        "Redirects the user to /login",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add loading spinner between Google redirect and interview page",
+      "description": "As a student, I want visual feedback while my session is being established after signing in with Google.",
+      "acceptanceCriteria": [
+        "After the auth-callback redirect lands on /interview, a brief loading/spinner screen is shown while the auth-session check completes",
+        "The spinner displays a message like 'Signing you in...'",
+        "Once auth is confirmed, the spinner transitions to the normal interview flow (EntryScreen for session code)",
+        "If auth check fails, redirect to /login",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "This may already be handled naturally by the layout load function from US-007. Only add if there's a visible delay between redirect and page render."
     }
   ]
 }

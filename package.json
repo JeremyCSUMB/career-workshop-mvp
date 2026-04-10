@@ -10,7 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@netlify/blobs": "^10.7.4"
+    "@netlify/blobs": "^10.7.4",
+    "jsonwebtoken": "^9.0.3"
   },
   "engines": {
     "node": ">=18.0.0"
