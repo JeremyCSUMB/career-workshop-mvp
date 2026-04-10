@@ -7,6 +7,7 @@
  */
 
 const { signJwt } = require('./lib/jwt');
+const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
@@ -98,6 +99,20 @@ exports.handler = async (event) => {
 
   // Create a session JWT
   const sessionToken = signJwt({ name, email, picture });
+
+  // Store user profile in Netlify Blobs for the instructor dashboard
+  try {
+    const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+    await store.setJSON(`user:${email}`, {
+      name,
+      email,
+      picture,
+      authenticatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    // Non-fatal — log but don't block the auth flow
+    console.error('Failed to store user profile in blobs:', err);
+  }
 
   // Determine redirect destination
   const state = event.queryStringParameters?.state;

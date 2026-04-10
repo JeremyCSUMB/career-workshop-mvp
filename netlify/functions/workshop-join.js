@@ -5,6 +5,8 @@
  */
 
 const { getStore } = require('@netlify/blobs');
+const { verifyJwt } = require('./lib/jwt');
+const { parseCookies } = require('./lib/cookies');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -44,6 +46,18 @@ exports.handler = async (event) => {
     return json(400, { error: 'claimSlot must be "student1" or "student2"' });
   }
 
+  // Extract email from session cookie if authenticated
+  let userEmail = null;
+  try {
+    const cookies = parseCookies(event.headers.cookie);
+    if (cookies.session) {
+      const payload = verifyJwt(cookies.session);
+      userEmail = payload.email || null;
+    }
+  } catch {
+    // Not authenticated or invalid token — proceed without email
+  }
+
   const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
 
   try {
@@ -61,12 +75,23 @@ exports.handler = async (event) => {
         return json(404, { error: 'Room not found' });
       }
 
+      // Ensure studentEmails object exists (old rooms may lack it)
+      if (!room.studentEmails) {
+        room.studentEmails = {};
+      }
+
       // Allow rejoin if student is already in the room
       const alreadyIn =
         room.students.student1 === studentName ||
         room.students.student2 === studentName;
 
       if (alreadyIn) {
+        // Update email on rejoin if authenticated
+        if (userEmail) {
+          const slot = room.students.student1 === studentName ? 'student1' : 'student2';
+          room.studentEmails[slot] = userEmail;
+          await store.setJSON(`room:${sessionId}:${roomId}`, room);
+        }
         return json(200, { room, rejoined: true });
       }
 
@@ -77,15 +102,24 @@ exports.handler = async (event) => {
       }
 
       // Assign to first available slot
+      let assignedSlot = null;
       if (!room.students.student1) {
         room.students.student1 = studentName;
+        assignedSlot = 'student1';
       } else if (!room.students.student2) {
         room.students.student2 = studentName;
+        assignedSlot = 'student2';
       } else if (claimSlot) {
         // Claim an existing slot (student lost their name / different device)
         room.students[claimSlot] = studentName;
+        assignedSlot = claimSlot;
       } else {
         return json(409, { error: 'Room is full', students: room.students });
+      }
+
+      // Store email for the assigned slot if authenticated
+      if (userEmail && assignedSlot) {
+        room.studentEmails[assignedSlot] = userEmail;
       }
 
       await store.setJSON(`room:${sessionId}:${roomId}`, room);
