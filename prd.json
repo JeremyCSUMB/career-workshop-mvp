@@ -110,7 +110,7 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The JWT verification should happen server-side in the load function. Import the jwt utility or decode inline since this runs in SvelteKit server context."
     },
     {

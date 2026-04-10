@@ -14,6 +14,9 @@
 - `aiFollowUps` is array of `{ questions, timestamp }`, `capabilityProfiles` is array of `{ summary, capabilities, studentName, round }` — match by round for profile, use last entry for followups
 - Pass transient server data via props to child components rather than persisting to the interview store/localStorage
 - Submissions use round labels like `round1-notes`, `round1-followup` — match with `round${currentRound}-notes` pattern; the `notes` field holds the text
+- SvelteKit server load functions: use `cookies.get('session')` for cookie access, `throw redirect(302, url)` for redirects
+- `jsonwebtoken` works as ES module import in SvelteKit server files — SvelteKit handles CJS interop
+- User data from +page.server.js load is available via `let { data } = $props()` in Svelte 5 pages
 
 ---
 
@@ -92,4 +95,18 @@
   - The `.ws-card` and `.ws-container` classes provide the standard centered card layout — use max-width on the card for narrower forms
   - Google branding SVG paths for the 'G' logo: 4 paths with colors #4285F4, #34A853, #FBBC05, #EA4335
   - Use `window.location.href` for navigation to Netlify functions (not SvelteKit `goto`) since they're outside the SvelteKit router
+---
+
+## 2026-04-10 - US-007
+- Created +page.server.js for /interview route with server-side auth check
+- Load function reads `session` cookie, verifies JWT with jsonwebtoken
+- If missing/invalid, redirects to /login?redirect=/interview (preserving query params like ?code=)
+- If valid, returns user profile { name, email, picture } as page data
+- Files changed: src/routes/interview/+page.server.js (new)
+- **Learnings for future iterations:**
+  - SvelteKit server load functions have access to `cookies` via the event object — use `cookies.get('session')` instead of manual header parsing
+  - `jsonwebtoken` can be imported as ES module in SvelteKit server files (`import jwt from 'jsonwebtoken'`) despite being a CJS package — SvelteKit handles interop
+  - Use `throw redirect(302, url)` from `@sveltejs/kit` for server-side redirects in load functions
+  - `url.pathname + url.search` preserves the full path with query params for redirect round-trips
+  - The user data returned from load is available in the page component via `export let data` (Svelte 4) or `let { data } = $props()` (Svelte 5)
 ---
