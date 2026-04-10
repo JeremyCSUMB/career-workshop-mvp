@@ -40,3 +40,18 @@
   - Google OAuth authorization endpoint: `https://accounts.google.com/o/oauth2/v2/auth`
   - The redirect_uri in auth-login must match exactly what auth-callback uses — both should derive it the same way
 ---
+
+## 2026-04-10 - US-003
+- Implemented auth-callback Netlify Function at netlify/functions/auth-callback.js
+- Exchanges Google authorization code for tokens via POST to https://oauth2.googleapis.com/token
+- Decodes Google ID token (JWT) to extract name, email, picture without additional verification (token exchange validates it)
+- Creates a session JWT using the shared jwt.js utility from US-001
+- Sets HTTP-only, Secure, SameSite=Lax cookie named 'session' with 8-hour max-age (28800s)
+- Redirects to /interview by default, or to the URL from the OAuth state parameter if present
+- Files changed: netlify/functions/auth-callback.js (new)
+- **Learnings for future iterations:**
+  - Google's ID token payload can be decoded by base64url-decoding the second JWT segment — no need for a verification library since the token exchange itself validates authenticity
+  - Token exchange endpoint: `https://oauth2.googleapis.com/token` with `application/x-www-form-urlencoded` content type
+  - The `state` parameter round-trips through Google OAuth unchanged — use it to preserve the original redirect path with query params
+  - Cookie attributes must include `Path=/` so it's sent on all routes (including /.netlify/functions/ paths)
+---

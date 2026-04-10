@@ -48,7 +48,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Uses GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars. The redirect_uri must match what was used in auth-login."
     },
     {
