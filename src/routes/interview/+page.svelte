@@ -13,6 +13,8 @@
 	import CompleteScreen from '$lib/components/interview/CompleteScreen.svelte';
 	import { fade, fly } from 'svelte/transition';
 
+	let { data } = $props();
+
 	let screen = $state('entry'); // entry | rooms | waiting | interview | complete | ended
 	let rooms = $state([]);
 	let codeFromUrl = $state(false);
@@ -260,6 +262,11 @@
 
 	// Resume on mount
 	onMount(() => {
+		// Auto-fill student name from Google profile
+		if (data?.user?.name && !$interviewState.studentName) {
+			interviewState.update((s) => ({ ...s, studentName: data.user.name }));
+		}
+
 		// Check for ?code= URL parameter
 		const urlParams = new URLSearchParams(window.location.search);
 		const codeParam = urlParams.get('code');
@@ -401,7 +408,7 @@
 	{#key screen}
 		<div in:fly={{ y: 4, duration: 250 }} out:fade={{ duration: 150 }}>
 			{#if screen === 'entry'}
-				<EntryScreen onRoomsFound={handleRoomsFound} {codeFromUrl} />
+				<EntryScreen onRoomsFound={handleRoomsFound} {codeFromUrl} googleName={data?.user?.name || ''} />
 			{:else if screen === 'rooms'}
 				<RoomPicker {rooms} onJoinRoom={handleJoinRoom} onSwitchSession={handleSwitchSession} {claimState} onClaimSlot={handleClaimSlot} onCancelClaim={() => (claimState = null)} />
 			{:else if screen === 'waiting'}

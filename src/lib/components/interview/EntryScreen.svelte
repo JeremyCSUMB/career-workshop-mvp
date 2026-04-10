@@ -3,12 +3,12 @@
 	import { api } from '$lib/api.js';
 	import { interviewState } from '$lib/stores/interview.js';
 
-	let { onRoomsFound, codeFromUrl = false } = $props();
+	let { onRoomsFound, codeFromUrl = false, googleName = '' } = $props();
 
 	let loading = $state(false);
 	let error = $state('');
 	let sessionInput = $state('');
-	let nameInput = $state('');
+	let nameInput = $state(googleName);
 
 	// Only autofill the session code when it comes from a ?code= URL parameter
 	$effect(() => {
@@ -66,7 +66,11 @@
 
 <div class="ws-card">
 	<h2>Join a Workshop</h2>
-	<p>Enter the session code from your facilitator and your name.</p>
+	{#if googleName}
+		<p>Welcome, {googleName}! Enter the session code from your facilitator.</p>
+	{:else}
+		<p>Enter the session code from your facilitator and your name.</p>
+	{/if}
 	<div class="ws-field">
 		<label class="ws-label" for="entry-session">Session Code</label>
 		<input
@@ -83,6 +87,7 @@
 			onkeydown={handleKeydown}
 		>
 	</div>
+	{#if !googleName}
 	<div class="ws-field">
 		<label class="ws-label" for="entry-name">Your Name</label>
 		<input
@@ -95,6 +100,7 @@
 			onkeydown={handleKeydown}
 		>
 	</div>
+	{/if}
 	{#if error}
 		<div class="ws-error">{error}</div>
 	{/if}
