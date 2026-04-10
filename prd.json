@@ -127,7 +127,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "The existing flow uses ws_studentName in localStorage throughout. Set it from the Google profile so all downstream components work unchanged."
     },
     {

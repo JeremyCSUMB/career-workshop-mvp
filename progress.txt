@@ -110,3 +110,15 @@
   - `url.pathname + url.search` preserves the full path with query params for redirect round-trips
   - The user data returned from load is available in the page component via `export let data` (Svelte 4) or `let { data } = $props()` (Svelte 5)
 ---
+
+## 2026-04-10 - US-008
+- Auto-fill student name from Google profile, skip name entry in EntryScreen
+- +page.svelte: Accept `data` from server load, set `studentName` in interview store on mount from `data.user.name`
+- EntryScreen.svelte: Accept `googleName` prop, initialize `nameInput` to it, hide name field when present, show welcome message
+- Files changed: src/routes/interview/+page.svelte, src/lib/components/interview/EntryScreen.svelte
+- **Learnings for future iterations:**
+  - Props from `+page.server.js` load are accessed via `let { data } = $props()` in Svelte 5 pages — this was already documented but now confirmed in practice
+  - `nameInput = $state(googleName)` captures the initial prop value — this is fine since googleName doesn't change after mount
+  - The interview store's `update()` method auto-persists to localStorage, so setting `studentName` via `interviewState.update()` automatically writes `ws_studentName` to localStorage
+  - EntryScreen validation still works with pre-filled googleName since `nameInput` is initialized to it — no need to change validation logic
+---
