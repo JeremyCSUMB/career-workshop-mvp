@@ -95,6 +95,7 @@
 		room._phase = getRoomPhase(room);
 		room._lastInputTime = room.lastInputTime || null;
 		room._studentNames = extractStudentNames(room.students);
+		room._authenticatedStudents = buildAuthStudentList(room);
 	}
 
 	function sortRooms(r) {

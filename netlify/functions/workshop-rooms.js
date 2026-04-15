@@ -47,6 +47,38 @@ exports.handler = async (event) => {
       blobs.map((blob) => store.get(blob.key, { type: 'json' }))
     )).filter(Boolean);
 
+    // Look up user profiles for authenticated students
+    const emailSet = new Set();
+    for (const room of rooms) {
+      if (room.studentEmails) {
+        for (const email of Object.values(room.studentEmails)) {
+          if (email) emailSet.add(email);
+        }
+      }
+    }
+    const userProfiles = {};
+    if (emailSet.size > 0) {
+      await Promise.all(
+        [...emailSet].map(async (email) => {
+          try {
+            const profile = await store.get(`user:${email}`, { type: 'json' });
+            if (profile) userProfiles[email] = profile;
+          } catch { /* skip missing profiles */ }
+        })
+      );
+      // Attach profiles to rooms
+      for (const room of rooms) {
+        if (room.studentEmails) {
+          room.authenticatedStudents = {};
+          for (const [slot, email] of Object.entries(room.studentEmails)) {
+            if (email && userProfiles[email]) {
+              room.authenticatedStudents[slot] = userProfiles[email];
+            }
+          }
+        }
+      }
+    }
+
     return json(200, { rooms, rounds, prompts, ended: !!session?.ended });
   } catch (error) {
     console.error('List rooms error:', error);

@@ -53,6 +53,19 @@ exports.handler = async (event) => {
       room.capabilityProfiles = room.capabilityProfile ? [room.capabilityProfile] : [];
     }
 
+    // Look up user profiles for authenticated students
+    if (room.studentEmails) {
+      room.authenticatedStudents = {};
+      for (const [slot, email] of Object.entries(room.studentEmails)) {
+        if (email) {
+          try {
+            const profile = await store.get(`user:${email}`, { type: 'json' });
+            if (profile) room.authenticatedStudents[slot] = profile;
+          } catch { /* skip */ }
+        }
+      }
+    }
+
     return json(200, { room, ended });
   } catch (error) {
     console.error('Get room error:', error);
