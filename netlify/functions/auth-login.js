@@ -25,7 +25,8 @@ exports.handler = async (event) => {
 
   // Build the redirect_uri pointing to our callback function
   const host = event.headers.host || 'localhost:8888';
-  const protocol = event.headers['x-forwarded-proto'] || 'https';
+  const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+  const protocol = isLocalhost ? 'http' : (event.headers['x-forwarded-proto'] || 'https');
   const redirectUri = `${protocol}://${host}/.netlify/functions/auth-callback`;
 
   // Preserve the original redirect URL (e.g., /interview?code=ABC) as OAuth state
