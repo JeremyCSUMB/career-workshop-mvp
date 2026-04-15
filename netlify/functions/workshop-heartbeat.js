@@ -36,7 +36,7 @@ exports.handler = async (event) => {
     return json(400, { error: 'Invalid JSON in request body' });
   }
 
-  const { sessionId, roomId, studentName } = body;
+  const { sessionId, roomId, studentName, readyForRound } = body;
   if (!sessionId || !roomId) {
     return json(400, { error: 'Missing required fields: sessionId, roomId' });
   }
@@ -81,6 +81,9 @@ exports.handler = async (event) => {
         if (slot) {
           room.presence[slot].online = true;
           room.presence[slot].lastSeen = timestamp;
+          if (typeof readyForRound === 'number') {
+            room.presence[slot].readyForRound = readyForRound;
+          }
           await store.setJSON(`room:${sessionId}:${roomId}`, room);
         }
       }

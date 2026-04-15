@@ -11,6 +11,7 @@
 	import WaitingScreen from '$lib/components/interview/WaitingScreen.svelte';
 	import InterviewScreen from '$lib/components/interview/InterviewScreen.svelte';
 	import CompleteScreen from '$lib/components/interview/CompleteScreen.svelte';
+	import PartnerChangeScreen from '$lib/components/interview/PartnerChangeScreen.svelte';
 	import UserProfileMenu from '$lib/components/UserProfileMenu.svelte';
 	import { fade, fly } from 'svelte/transition';
 
@@ -265,6 +266,11 @@
 		goToScreen('partner-change');
 	}
 
+	function handlePartnerChangeReady() {
+		// Re-determine roles with the new pair and start the interview fresh
+		startInterview();
+	}
+
 	function handleComplete() {
 		goToScreen('complete');
 	}
@@ -483,10 +489,7 @@
 			{:else if screen === 'interview'}
 				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} onMoved={handleMoved} {resumeRoomData} {rejoined} />
 			{:else if screen === 'partner-change'}
-				<div class="ws-card" style="text-align:center;padding:40px 24px;">
-					<h2 style="margin:0 0 12px;">New Partner</h2>
-					<p style="color:var(--ci-text-muted);margin:0 0 24px;">You've been paired with a new partner. Getting ready...</p>
-				</div>
+				<PartnerChangeScreen onReady={handlePartnerChangeReady} />
 			{:else if screen === 'complete'}
 				<CompleteScreen onChangeRoom={handleChangeRoom} onSwitchSession={handleSwitchSession} onLeave={handleLeave} />
 			{:else if screen === 'ended'}
