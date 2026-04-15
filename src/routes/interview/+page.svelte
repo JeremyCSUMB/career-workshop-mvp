@@ -74,7 +74,7 @@
 		const beat = () => {
 			if (!$interviewState.sessionId || !$interviewState.roomId) return;
 			api('workshop-heartbeat', {
-				body: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId }
+				body: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId, studentName: $interviewState.studentName }
 			}).catch(() => {});
 		};
 		beat();

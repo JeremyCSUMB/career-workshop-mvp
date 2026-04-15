@@ -36,6 +36,10 @@ function makeEmptyRoom(sessionId, roomId) {
     capabilityProfiles: [],
     classifications: [],
     nudges: [],
+    presence: {
+      student1: { online: false, lastSeen: null },
+      student2: { online: false, lastSeen: null },
+    },
   };
 }
 

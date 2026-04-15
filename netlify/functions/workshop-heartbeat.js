@@ -36,7 +36,7 @@ exports.handler = async (event) => {
     return json(400, { error: 'Invalid JSON in request body' });
   }
 
-  const { sessionId, roomId } = body;
+  const { sessionId, roomId, studentName } = body;
   if (!sessionId || !roomId) {
     return json(400, { error: 'Missing required fields: sessionId, roomId' });
   }
@@ -57,6 +57,34 @@ exports.handler = async (event) => {
     // read-modify-write on the room blob (avoids race with join/leave).
     const timestamp = new Date().toISOString();
     await store.setJSON(`heartbeat:${sessionId}:${roomId}`, { timestamp, roomId });
+
+    // Update per-student presence in the room blob
+    if (studentName) {
+      const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+      if (room) {
+        // Initialize presence if missing (old rooms)
+        if (!room.presence) {
+          room.presence = {
+            student1: { online: false, lastSeen: null },
+            student2: { online: false, lastSeen: null },
+          };
+        }
+
+        // Identify which slot this student occupies
+        let slot = null;
+        if (room.students.student1 === studentName) {
+          slot = 'student1';
+        } else if (room.students.student2 === studentName) {
+          slot = 'student2';
+        }
+
+        if (slot) {
+          room.presence[slot].online = true;
+          room.presence[slot].lastSeen = timestamp;
+          await store.setJSON(`room:${sessionId}:${roomId}`, room);
+        }
+      }
+    }
 
     return json(200, { ok: true });
   } catch (error) {

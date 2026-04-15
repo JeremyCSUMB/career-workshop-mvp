@@ -12,5 +12,6 @@ export const WORKSHOP_CONFIG = {
 	pulse_interval: 2000,
 	full_refresh_interval: 15000,
 	classify_interval: 12000,
-	inactivity_check_interval: 30000
+	inactivity_check_interval: 30000,
+	presence_timeout: 30000
 };
