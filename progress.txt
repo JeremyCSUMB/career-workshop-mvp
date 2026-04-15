@@ -31,6 +31,9 @@
 - Position profile menu in headers with `.ws-header__profile` class: `position:absolute; right:24px; top:50%; transform:translateY(-50%)`
 - movedTo/movedFrom markers on room blobs: `${slot}_movedTo` / `${slot}_movedFrom` with `{ roomId, studentName, timestamp }` — detect moves by checking if studentName is no longer in room.students, then reading the marker
 - Move detection in InterviewScreen: `checkForRoomMove(room)` runs in both poll paths — stops polls and calls `onMoved` callback when a move is detected
+- Partner change ready flag: heartbeat accepts `readyForRound` param, stored in `presence[slot].readyForRound` — poll workshop-room to check partner's readyForRound
+- New partner detection (existing student): compare `$interviewState.partnerName` against room poll data — if partner name changed and `movedFrom` marker exists, trigger partner-change screen
+- PartnerChangeScreen supports `variant` prop: 'moved' (US-012, moved student) vs 'existing' (US-013, existing student) — different messages, same Ready/timeout logic
 
 ---
 
@@ -180,4 +183,37 @@
   - The movedTo marker's `studentName` field lets you match which marker belongs to the moved student (important when slot could be either student1 or student2)
   - `handleMoved` in +page.svelte clears role/partnerName to null/empty since the new room may have different partner — US-012's partner-change screen will re-determine roles
   - The `partner-change` screen state is a new screen value that doesn't appear in the `navItems` derived — bottom nav defaults to 'home' for this screen
+---
+
+## 2026-04-15 - US-012
+- Created `PartnerChangeScreen.svelte` — transition screen shown when a student is moved to a new room
+- Shows message with round number and new partner's name, plus a "Ready" button
+- Clicking Ready sends heartbeat with `readyForRound` parameter to write ready flag to room blob's presence
+- Polls workshop-room every 2s to check partner's `presence[slot].readyForRound`
+- Auto-transitions to interview after both students click Ready, or 10 seconds elapsed
+- Extended `workshop-heartbeat.js` to accept optional `readyForRound` field, stored in `presence[slot].readyForRound`
+- Replaced placeholder partner-change screen in `+page.svelte` with PartnerChangeScreen component
+- `handlePartnerChangeReady` calls `startInterview()` which re-determines roles by alphabetical sort of the new pair
+- Files changed: `netlify/functions/workshop-heartbeat.js`, `src/lib/components/interview/PartnerChangeScreen.svelte` (new), `src/routes/interview/+page.svelte`
+- **Learnings for future iterations:**
+  - Ready flag is stored as `presence[slot].readyForRound = <round number>` — check equality with current round to determine readiness
+  - The 10s auto-transition ensures no permanent blocking if partner doesn't click Ready
+  - `startInterview()` in +page.svelte handles role re-determination — no need to duplicate that logic in the partner change screen
+  - Partner name derived from `students.filter(n => n !== studentName)` since store already has the new room's students from `handleMoved`
+---
+
+## 2026-04-15 - US-013
+- Added `checkForNewPartner(room)` to InterviewScreen — detects when partner name changes and `movedFrom` marker is present on the new student's slot
+- Integrated new partner detection into both poll paths (storyteller and interviewer presence), running after move-out check but before presence updates
+- Added `onNewPartner` callback prop to InterviewScreen, handled by `handleNewPartner` in `+page.svelte`
+- `handleNewPartner` stops polls, clears ephemeral keys, updates store with refreshed students/round, transitions to `partner-change-existing` screen
+- Extended PartnerChangeScreen with `variant` prop: 'existing' shows "A new partner has joined your room!" message; 'moved' (default) shows original message
+- Both variants share the same Ready button + 10s auto-transition logic
+- In-progress submissions are preserved on the server (not deleted) — only ephemeral localStorage keys are cleared
+- Files changed: `src/lib/components/interview/InterviewScreen.svelte`, `src/routes/interview/+page.svelte`, `src/lib/components/interview/PartnerChangeScreen.svelte`, `prd.json`
+- **Learnings for future iterations:**
+  - New partner detection must run after move-out check — if the student was moved out, there's no point checking for new partners in the old room
+  - The `variant` prop pattern on PartnerChangeScreen avoids duplicating the Ready/timeout/poll logic for the two perspectives
+  - `partner-change-existing` is a separate screen value from `partner-change` so `+page.svelte` can pass the correct variant
+  - Ephemeral keys are cleared on partner change so the new round starts fresh — server submissions from the interrupted round remain intact
 ---

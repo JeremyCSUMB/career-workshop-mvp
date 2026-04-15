@@ -266,6 +266,33 @@
 		goToScreen('partner-change');
 	}
 
+	function handleNewPartner({ newRoom, newPartnerName }) {
+		// Existing student: a new partner was moved into their room
+		stopAllPolling();
+		clearEphemeralKeys();
+
+		const students = extractStudentNames(newRoom.students);
+		const newRound = newRoom.currentRound || $interviewState.round;
+
+		// Update store with refreshed room data
+		interviewState.update((s) => ({
+			...s,
+			round: newRound,
+			students,
+			role: null,
+			partnerName: ''
+		}));
+
+		resumeRoomData = null;
+
+		// Restart heartbeat for the same room
+		startHeartbeat();
+		startNudgePolling();
+
+		// Transition to partner-change screen with 'existing' variant
+		goToScreen('partner-change-existing');
+	}
+
 	function handlePartnerChangeReady() {
 		// Re-determine roles with the new pair and start the interview fresh
 		startInterview();
@@ -487,9 +514,11 @@
 			{:else if screen === 'waiting'}
 				<WaitingScreen students={$interviewState.students} onChangeRoom={handleChangeRoom} />
 			{:else if screen === 'interview'}
-				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} onMoved={handleMoved} {resumeRoomData} {rejoined} />
+				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} onMoved={handleMoved} onNewPartner={handleNewPartner} {resumeRoomData} {rejoined} />
 			{:else if screen === 'partner-change'}
-				<PartnerChangeScreen onReady={handlePartnerChangeReady} />
+				<PartnerChangeScreen onReady={handlePartnerChangeReady} variant="moved" />
+			{:else if screen === 'partner-change-existing'}
+				<PartnerChangeScreen onReady={handlePartnerChangeReady} variant="existing" />
 			{:else if screen === 'complete'}
 				<CompleteScreen onChangeRoom={handleChangeRoom} onSwitchSession={handleSwitchSession} onLeave={handleLeave} />
 			{:else if screen === 'ended'}

@@ -7,7 +7,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
-	let { onComplete, onChangeRoom, onMoved = null, resumeRoomData = null, rejoined = false } = $props();
+	let { onComplete, onChangeRoom, onMoved = null, onNewPartner = null, resumeRoomData = null, rejoined = false } = $props();
 
 	// Partner presence state
 	let partnerOnline = $state(true); // assume online initially
@@ -339,6 +339,35 @@
 		}
 	}
 
+	// Detect if a new partner has been moved into this room (existing student's perspective)
+	function checkForNewPartner(room) {
+		if (!room.students || !onNewPartner) return false;
+		const myName = $interviewState.studentName;
+		const currentPartner = $interviewState.partnerName;
+
+		// Find the other student in the room
+		let newPartnerName = null;
+		if (room.students.student1 === myName) {
+			newPartnerName = room.students.student2 || null;
+		} else if (room.students.student2 === myName) {
+			newPartnerName = room.students.student1 || null;
+		}
+
+		// If there's no partner or partner hasn't changed, no move detected
+		if (!newPartnerName || !currentPartner || newPartnerName === currentPartner) return false;
+
+		// Partner name changed — verify via movedFrom marker or name mismatch
+		const hasMovedFrom = (room.student1_movedFrom && room.student1_movedFrom.studentName === newPartnerName) ||
+			(room.student2_movedFrom && room.student2_movedFrom.studentName === newPartnerName);
+
+		if (hasMovedFrom || newPartnerName !== currentPartner) {
+			onNewPartner({ newRoom: room, newPartnerName });
+			return true;
+		}
+
+		return false;
+	}
+
 	function startPresencePoll() {
 		if (presencePollInterval) return;
 		const poll = async () => {
@@ -351,6 +380,14 @@
 				// Check if student was moved before updating presence
 				const moved = await checkForRoomMove(room);
 				if (moved) {
+					clearInterval(presencePollInterval);
+					presencePollInterval = null;
+					return;
+				}
+
+				// Check if a new partner was moved into this room
+				const newPartner = checkForNewPartner(room);
+				if (newPartner) {
 					clearInterval(presencePollInterval);
 					presencePollInterval = null;
 					return;
@@ -377,6 +414,14 @@
 				// Check if student was moved before processing round changes
 				const moved = await checkForRoomMove(room);
 				if (moved) {
+					clearInterval(storytellerPollInterval);
+					storytellerPollInterval = null;
+					return;
+				}
+
+				// Check if a new partner was moved into this room
+				const newPartner = checkForNewPartner(room);
+				if (newPartner) {
 					clearInterval(storytellerPollInterval);
 					storytellerPollInterval = null;
 					return;

@@ -207,7 +207,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "This is the moved student's view. The existing student in the target room sees a similar screen (US-013). The ready flag can be stored in the room blob's presence or a new readyForRound field."
     },
     {
@@ -227,7 +227,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "This mirrors US-012 but from the existing student's perspective. The detection trigger is different: this student's room poll detects a new partner appearing, not a movedTo flag. Both students must click Ready (or wait 10s) before the round restarts."
     }
   ]

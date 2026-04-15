@@ -4,7 +4,7 @@
 	import { interviewState } from '$lib/stores/interview.js';
 	import { onDestroy } from 'svelte';
 
-	let { onReady } = $props();
+	let { onReady, variant = 'moved' } = $props();
 
 	let myReady = $state(false);
 	let partnerReady = $state(false);
@@ -94,7 +94,11 @@
 	<div style="font-size:48px;margin-bottom:16px;">&#129309;</div>
 	<h2 style="margin:0 0 12px;">New Partner</h2>
 	<p style="color:var(--ci-text);margin:0 0 8px;">
-		You've been paired with a new partner! You'll be starting Round {round} together.
+		{#if variant === 'existing'}
+			A new partner has joined your room! You'll be restarting Round {round} together.
+		{:else}
+			You've been paired with a new partner! You'll be starting Round {round} together.
+		{/if}
 	</p>
 	{#if partnerName()}
 		<p style="font-size:18px;font-weight:600;color:var(--ci-accent);margin:0 0 24px;">
