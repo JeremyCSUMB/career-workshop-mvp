@@ -550,6 +550,23 @@ body {
   color: var(--ci-prompt-text);
 }
 
+.ws-partner-disconnected-banner {
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: var(--ci-radius-lg);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #92400e;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.dark .ws-partner-disconnected-banner {
+  background: #78350f;
+  color: #fef3c7;
+  border-color: #d97706;
+}
+
 .ws-role-label {
   display: inline-block;
   padding: 4px 12px;

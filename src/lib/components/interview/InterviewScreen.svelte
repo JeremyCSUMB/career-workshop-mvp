@@ -8,6 +8,11 @@
 
 	let { onComplete, onChangeRoom, resumeRoomData = null } = $props();
 
+	// Partner presence state
+	let partnerOnline = $state(true); // assume online initially
+	let partnerPreviousOnline = $state(null); // null = no previous state (initial load)
+	let presencePollInterval = null;
+
 	const MIN_CHARS = 80;
 
 	// Derived state
@@ -273,6 +278,46 @@
 		});
 	}
 
+	// Partner presence polling
+	function updatePartnerPresence(room) {
+		const presence = room.presence || { student1: { online: false, lastSeen: null }, student2: { online: false, lastSeen: null } };
+		const myName = $interviewState.studentName;
+		// Find partner's presence slot
+		let partnerPresence = null;
+		if (room.students) {
+			if (room.students.student1 === myName) {
+				partnerPresence = presence.student2;
+			} else if (room.students.student2 === myName) {
+				partnerPresence = presence.student1;
+			}
+		}
+		if (!partnerPresence) return;
+
+		// Compute online status using the same 30s threshold
+		const isOnline = partnerPresence.lastSeen
+			? (Date.now() - new Date(partnerPresence.lastSeen).getTime() <= CFG.presence_timeout)
+			: false;
+
+		partnerPreviousOnline = partnerOnline;
+		partnerOnline = isOnline;
+	}
+
+	function startPresencePoll() {
+		if (presencePollInterval) return;
+		const poll = async () => {
+			try {
+				const data = await api('workshop-room', {
+					params: { sessionId: $interviewState.sessionId, roomId }
+				});
+				const room = data.room || data;
+				updatePartnerPresence(room);
+			} catch {}
+		};
+		// Initial check after a short delay (don't flag on first load)
+		setTimeout(poll, 5000);
+		presencePollInterval = setInterval(poll, 5000);
+	}
+
 	// Storyteller: poll for round advancement
 	function startStorytellerPoll() {
 		if (storytellerPollInterval) clearInterval(storytellerPollInterval);
@@ -282,6 +327,10 @@
 					params: { sessionId: $interviewState.sessionId, roomId }
 				});
 				const room = data.room || data;
+
+				// Update presence from the same poll
+				updatePartnerPresence(room);
+
 				const currentRound = room.currentRound || room.round;
 				if (currentRound && currentRound > $interviewState.round) {
 					clearInterval(storytellerPollInterval);
@@ -357,11 +406,18 @@
 	$effect(() => {
 		if (role === 'storyteller') {
 			startStorytellerPoll();
+		} else {
+			// Interviewer: start a separate presence poll (storyteller gets presence from its own poll)
+			startPresencePoll();
 		}
 		return () => {
 			if (storytellerPollInterval) {
 				clearInterval(storytellerPollInterval);
 				storytellerPollInterval = null;
+			}
+			if (presencePollInterval) {
+				clearInterval(presencePollInterval);
+				presencePollInterval = null;
 			}
 		};
 	});
@@ -369,6 +425,7 @@
 	onDestroy(() => {
 		clearTimeout(debounceTimer);
 		if (storytellerPollInterval) clearInterval(storytellerPollInterval);
+		if (presencePollInterval) clearInterval(presencePollInterval);
 	});
 </script>
 
@@ -379,6 +436,12 @@
 	</div>
 	<div class="ws-round-header__badge">Room {roomId}</div>
 </div>
+
+{#if !partnerOnline && partnerPreviousOnline !== null}
+	<div class="ws-partner-disconnected-banner" role="alert">
+		Your partner appears to be disconnected. You can continue working &mdash; they'll be able to rejoin.
+	</div>
+{/if}
 
 <div class="ws-prompt-card">
 	<p>{promptText()}</p>
