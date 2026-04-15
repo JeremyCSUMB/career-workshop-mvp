@@ -114,7 +114,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The resume flow already restores state. This story just adds the toast notification after successful resume. The role is determined by the existing determineRoles function."
     },
     {

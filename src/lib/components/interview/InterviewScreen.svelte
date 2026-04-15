@@ -7,13 +7,15 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
-	let { onComplete, onChangeRoom, resumeRoomData = null } = $props();
+	let { onComplete, onChangeRoom, resumeRoomData = null, rejoined = false } = $props();
 
 	// Partner presence state
 	let partnerOnline = $state(true); // assume online initially
 	let partnerPreviousOnline = $state(null); // null = no previous state (initial load)
 	let presencePollInterval = null;
 	let showReconnectToast = $state(false);
+	let showWelcomeBackToast = $state(false);
+	let welcomeBackMessage = $state('');
 
 	const MIN_CHARS = 80;
 
@@ -422,6 +424,15 @@
 		}
 	});
 
+	// Show welcome-back toast on reconnection (rejoined session)
+	$effect(() => {
+		if (rejoined && role) {
+			const roleLabel = role === 'interviewer' ? 'Interviewer' : 'Storyteller';
+			welcomeBackMessage = `Welcome back! You're in Round ${round} as ${roleLabel}.`;
+			showWelcomeBackToast = true;
+		}
+	});
+
 	// Show reconnection toast when partner transitions from offline to online
 	$effect(() => {
 		if (partnerPreviousOnline === false && partnerOnline === true) {
@@ -600,3 +611,4 @@
 </div>
 
 <Toast bind:visible={showReconnectToast} message="Your partner is back online!" type="success" duration={5000} />
+<Toast bind:visible={showWelcomeBackToast} message={welcomeBackMessage} type="info" duration={5000} />

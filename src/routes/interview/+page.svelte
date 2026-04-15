@@ -22,6 +22,7 @@
 	let sessionEndedMessage = $state('');
 	let claimState = $state(null); // { roomId, students } when a 409 with names is received
 	let resumeRoomData = $state(null); // { aiFollowUps, capabilityProfiles } from server on resume
+	let rejoined = $state(false); // true when resuming via workshop-join with rejoined: true
 
 	// Nudge state
 	let nudgeText = $state('');
@@ -180,6 +181,7 @@
 			interviewState.update((s) => ({ ...s, roomId: String(roomId) }));
 
 			if (data.rejoined) {
+				rejoined = true;
 				const currentRound = room.currentRound || 1;
 				if (currentRound > $interviewState.totalRounds) {
 					interviewState.update((s) => ({ ...s, round: s.totalRounds }));
@@ -344,6 +346,8 @@
 						return;
 					}
 
+					if (joinData.rejoined) rejoined = true;
+
 					// Fetch full room state (includes submissions, aiFollowUps, capabilityProfiles)
 					const roomData = await api('workshop-room', {
 						params: { sessionId: s.sessionId, roomId: s.roomId }
@@ -447,7 +451,7 @@
 			{:else if screen === 'waiting'}
 				<WaitingScreen students={$interviewState.students} onChangeRoom={handleChangeRoom} />
 			{:else if screen === 'interview'}
-				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} {resumeRoomData} />
+				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} {resumeRoomData} {rejoined} />
 			{:else if screen === 'complete'}
 				<CompleteScreen onChangeRoom={handleChangeRoom} onSwitchSession={handleSwitchSession} onLeave={handleLeave} />
 			{:else if screen === 'ended'}

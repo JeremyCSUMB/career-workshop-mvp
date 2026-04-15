@@ -105,3 +105,15 @@
   - The `workshop-submit` endpoint's upsert pattern (findIndex by studentName + round) handles beacon saves seamlessly — no server changes needed
   - Server-priority hydration: when `resumeRoomData` exists, always use server submission data over localStorage, since sendBeacon may have saved data that localStorage missed
 ---
+
+## 2026-04-15 - US-007
+- Added welcome-back toast on reconnection: "Welcome back! You're in Round [X] as [Interviewer/Storyteller]."
+- Added `rejoined` state in `+page.svelte`, set to `true` when `workshop-join` returns `rejoined: true` (both resume flow and handleJoinRoom)
+- Passed `rejoined` prop to InterviewScreen, which shows an info Toast on mount when true
+- Toast only fires once per reconnection (effect depends on `rejoined` and `role`, both set once)
+- Files changed: `src/routes/interview/+page.svelte`, `src/lib/components/interview/InterviewScreen.svelte`, `prd.json`
+- **Learnings for future iterations:**
+  - `workshop-join` returns `rejoined: true` when a student re-registers in a room they were already in — use this to distinguish fresh joins from reconnections
+  - Two Toast instances can coexist in the template — they manage their own visibility independently via `bind:visible`
+  - The resume flow in `+page.svelte` onMount has two rejoin paths: the localStorage resume (lines ~335-388) and handleJoinRoom with `data.rejoined` — both need the `rejoined` flag
+---
