@@ -10,6 +10,7 @@
 	import GuideChatBubble from '$lib/components/dashboard/GuideChatBubble.svelte';
 	import ProjectorScreen from '$lib/components/dashboard/ProjectorScreen.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
+	import UserProfileMenu from '$lib/components/UserProfileMenu.svelte';
 
 	let screen = $state('login'); // login | session | dashboard | analytics | guide
 	let sessionId = $state('');
@@ -19,6 +20,7 @@
 	let showWelcomeBanner = $state(false);
 	let projectorSessionId = $state('');
 	let projectorSessionName = $state('');
+	let user = $state(null);
 
 	// Bottom nav items
 	let navItems = $derived(
@@ -116,7 +118,26 @@
 
 	let isLoggedIn = $derived(screen !== 'login');
 
-	onMount(() => {
+	async function handleProfileLogout() {
+		try {
+			await fetch('/.netlify/functions/auth-logout', { method: 'POST' });
+		} catch {}
+		if (browser) {
+			sessionStorage.removeItem('ws_dash_auth');
+			sessionStorage.removeItem('ws_dash_sessionId');
+		}
+		window.location.href = '/login';
+	}
+
+	onMount(async () => {
+		// Fetch user profile for avatar
+		try {
+			const res = await fetch('/.netlify/functions/auth-session');
+			if (res.ok) {
+				const data = await res.json();
+				if (data.user) user = data.user;
+			}
+		} catch {}
 		const wasAuth = sessionStorage.getItem('ws_dash_auth') === 'true';
 		const savedSession = sessionStorage.getItem('ws_dash_sessionId');
 
@@ -137,7 +158,7 @@
 	<title>Workshop Dashboard</title>
 </svelte:head>
 
-<header class="ws-header ws-header--wide">
+<header class="ws-header ws-header--wide" style="position:relative;">
 	<h1>Workshop Dashboard</h1>
 	<p>
 		{subtitle}
@@ -146,6 +167,11 @@
 			<button class="ws-link-btn" onclick={handleCopyLink}>Copy Join Link</button>
 		{/if}
 	</p>
+	{#if user}
+		<div class="ws-header__profile">
+			<UserProfileMenu name={user.name} email={user.email} picture={user.picture} onLogout={handleProfileLogout} />
+		</div>
+	{/if}
 </header>
 
 <main class="ws-container ws-container--wide">
@@ -184,3 +210,18 @@
 {/if}
 
 <BottomNav items={navItems} active={activeNav} />
+
+<style>
+	.ws-header__profile {
+		position: absolute;
+		right: 24px;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	@media (max-width: 600px) {
+		.ws-header__profile {
+			right: 16px;
+		}
+	}
+</style>
