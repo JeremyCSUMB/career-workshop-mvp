@@ -11,6 +11,7 @@
 	import WaitingScreen from '$lib/components/interview/WaitingScreen.svelte';
 	import InterviewScreen from '$lib/components/interview/InterviewScreen.svelte';
 	import CompleteScreen from '$lib/components/interview/CompleteScreen.svelte';
+	import UserProfileMenu from '$lib/components/UserProfileMenu.svelte';
 	import { fade, fly } from 'svelte/transition';
 
 	let { data } = $props();
@@ -384,6 +385,15 @@
 		goToScreen('entry');
 	});
 
+	async function handleProfileLogout() {
+		try {
+			await fetch('/.netlify/functions/auth-logout', { method: 'POST' });
+		} catch {}
+		// Clear ws_* localStorage keys
+		Object.keys(localStorage).filter((k) => k.startsWith('ws_')).forEach((k) => localStorage.removeItem(k));
+		window.location.href = '/login';
+	}
+
 	onDestroy(() => {
 		stopAllPolling();
 		clearTimeout(nudgeDismissTimer);
@@ -396,11 +406,16 @@
 
 <NudgeBanner text={nudgeText} visible={nudgeVisible} onDismiss={() => (nudgeVisible = false)} />
 
-<header class="ws-header">
+<header class="ws-header" style="position:relative;">
 	<h1>Career Intelligence Workshop</h1>
 	<p>Peer interview — discover capabilities you didn't know you had.</p>
 	{#if !['entry', 'rooms'].includes(screen)}
 		<button class="ws-leave-btn" onclick={handleLeave}>Leave Session</button>
+	{/if}
+	{#if data?.user}
+		<div class="ws-header__profile">
+			<UserProfileMenu name={data.user.name} email={data.user.email} picture={data.user.picture} onLogout={handleProfileLogout} />
+		</div>
 	{/if}
 </header>
 
@@ -430,3 +445,18 @@
 </main>
 
 <BottomNav items={navItems} active={activeNav} />
+
+<style>
+	.ws-header__profile {
+		position: absolute;
+		right: 24px;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	@media (max-width: 600px) {
+		.ws-header__profile {
+			right: 16px;
+		}
+	}
+</style>

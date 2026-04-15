@@ -1,9 +1,5 @@
 <script>
-	import { createEventDispatcher } from 'svelte';
-
-	let { name = '', email = '', picture = '' } = $props();
-
-	const dispatch = createEventDispatcher();
+	let { name = '', email = '', picture = '', onLogout } = $props();
 
 	let open = $state(false);
 
@@ -25,7 +21,7 @@
 
 	function handleLogout() {
 		open = false;
-		dispatch('logout');
+		onLogout?.();
 	}
 
 	let initial = $derived(name ? name.charAt(0).toUpperCase() : '?');
