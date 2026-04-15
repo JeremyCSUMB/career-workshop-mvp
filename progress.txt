@@ -20,122 +20,47 @@
 - Shared cookie parser lives in `netlify/functions/lib/cookies.js` — use `parseCookies(event.headers.cookie)` in any Netlify function
 - Room blobs have optional `studentEmails` field — old rooms may lack it, always initialize with `if (!room.studentEmails) room.studentEmails = {}`
 - User profile blobs stored at `user:{email}` key — contain name, email, picture, authenticatedAt
+- The auth-logout endpoint already exists at netlify/functions/auth-logout.js — POST clears session cookie with Max-Age=0
+- Header CSS classes: `.ws-header` (centered, max-width 640px) for interview, `.ws-header--wide` (max-width 1080px) for dashboard
+- Existing CSS design system: `.ws-btn`, `.ws-btn--secondary`, `.ws-btn--small`, `.ws-btn--danger`, `.ws-card`, `.ws-link-btn`
+- Theme CSS vars: `--ci-accent`, `--ci-text`, `--ci-surface`, `--ci-border`, `--ci-focus-ring`
+- UserProfileMenu component: uses `onLogout` callback prop (not `createEventDispatcher`), accepts `name`/`email`/`picture`/`onLogout` props
+- Svelte 5 pattern: use callback props (`onLogout`) not `createEventDispatcher` — matches existing codebase convention
+- Position profile menu in headers with `.ws-header__profile` class: `position:absolute; right:24px; top:50%; transform:translateY(-50%)`
 
 ---
 
-## 2026-04-10 - US-001
-- Implemented JWT utility at netlify/functions/lib/jwt.js with signJwt(payload) and verifyJwt(token)
-- Installed jsonwebtoken npm package
-- Created .env.example with SESSION_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET placeholders
-- Files changed: netlify/functions/lib/jwt.js (new), .env.example (new), package.json, package-lock.json
+## 2026-04-15 - US-001
+- Created `src/lib/components/UserProfileMenu.svelte` with avatar display (36px circle), fallback initial, dropdown with user info and Sign out button
+- Dropdown: right-aligned, closes on outside click and Escape, uses ws-card-style shadow/border
+- Files changed: `src/lib/components/UserProfileMenu.svelte` (new)
 - **Learnings for future iterations:**
-  - Netlify functions use CommonJS (require/module.exports), not ES modules
-  - Existing lib pattern: netlify/functions/lib/ holds shared utilities (anthropic.js, now jwt.js)
-  - The jwt.js getSecret() reads from process.env.SESSION_SECRET — Netlify Dev must have this set
+  - Google profile images need `referrerpolicy="no-referrer"` to load correctly
+  - Use `svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions` for click-outside wrapper divs
+  - The component includes both US-001 (avatar) and US-002 (dropdown) functionality since they are tightly coupled in the same component
 ---
 
-## 2026-04-10 - US-002
-- Implemented auth-login Netlify Function at netlify/functions/auth-login.js
-- GET handler constructs Google OAuth 2.0 authorization URL with proper scopes (openid, profile, email)
-- Reads GOOGLE_CLIENT_ID from env, dynamically builds redirect_uri from request host/protocol
-- Accepts optional `redirect` query param, passes it as OAuth `state` parameter
-- Returns 302 redirect to Google consent screen
-- Files changed: netlify/functions/auth-login.js (new)
-- **Learnings for future iterations:**
-  - Use `event.headers.host` and `event.headers['x-forwarded-proto']` to dynamically build redirect URIs (works in both local dev and production)
-  - Google OAuth authorization endpoint: `https://accounts.google.com/o/oauth2/v2/auth`
-  - The redirect_uri in auth-login must match exactly what auth-callback uses — both should derive it the same way
+## 2026-04-15 - US-002
+- Dropdown menu already implemented as part of US-001 component
+- Refactored from `createEventDispatcher` to `onLogout` callback prop to match codebase convention
 ---
 
-## 2026-04-10 - US-003
-- Implemented auth-callback Netlify Function at netlify/functions/auth-callback.js
-- Exchanges Google authorization code for tokens via POST to https://oauth2.googleapis.com/token
-- Decodes Google ID token (JWT) to extract name, email, picture without additional verification (token exchange validates it)
-- Creates a session JWT using the shared jwt.js utility from US-001
-- Sets HTTP-only, Secure, SameSite=Lax cookie named 'session' with 8-hour max-age (28800s)
-- Redirects to /interview by default, or to the URL from the OAuth state parameter if present
-- Files changed: netlify/functions/auth-callback.js (new)
+## 2026-04-15 - US-003
+- Added UserProfileMenu to interview page header with absolute positioning
+- Logout handler: POST to auth-logout, clear all ws_* localStorage keys, redirect to /login
+- Files changed: `src/routes/interview/+page.svelte`, `src/lib/components/UserProfileMenu.svelte`
 - **Learnings for future iterations:**
-  - Google's ID token payload can be decoded by base64url-decoding the second JWT segment — no need for a verification library since the token exchange itself validates authenticity
-  - Token exchange endpoint: `https://oauth2.googleapis.com/token` with `application/x-www-form-urlencoded` content type
-  - The `state` parameter round-trips through Google OAuth unchanged — use it to preserve the original redirect path with query params
-  - Cookie attributes must include `Path=/` so it's sent on all routes (including /.netlify/functions/ paths)
+  - Headers need `position:relative` for absolute-positioned children (add inline `style="position:relative;"`)
+  - Use `.ws-header__profile` class for consistent profile menu positioning across pages
+  - Mobile breakpoint at 600px: switch from `right:24px` to `right:16px`
 ---
 
-## 2026-04-10 - US-004
-- Implemented auth-session Netlify Function at netlify/functions/auth-session.js
-- GET handler parses the `session` cookie from request headers
-- Verifies JWT using verifyJwt from shared jwt.js utility
-- Returns 200 with `{ authenticated: true, user: { name, email, picture } }` if valid
-- Returns 401 with `{ authenticated: false }` if cookie is missing or JWT is invalid
-- Files changed: netlify/functions/auth-session.js (new)
+## 2026-04-15 - US-004
+- Added UserProfileMenu to dashboard page header
+- Dashboard fetches user data from `/.netlify/functions/auth-session` on mount (no server-side load)
+- Logout clears both session cookie (via auth-logout) and sessionStorage dashboard keys
+- Files changed: `src/routes/dashboard/+page.svelte`
 - **Learnings for future iterations:**
-  - Cookie parsing: `event.headers.cookie` contains all cookies as a semicolon-separated string — need a helper to parse name=value pairs
-  - The parseCookies helper in auth-session.js can be extracted to lib/ if more functions need cookie parsing
-  - verifyJwt throws on invalid/expired tokens — wrap in try/catch and return 401
----
-
-## 2026-04-10 - US-005
-- Implemented auth-logout Netlify Function at netlify/functions/auth-logout.js
-- POST handler clears the 'session' cookie by setting it with Max-Age=0 and matching attributes (HttpOnly, Secure, SameSite=Lax, Path=/)
-- Returns 200 with `{ success: true }`
-- Files changed: netlify/functions/auth-logout.js (new)
-- **Learnings for future iterations:**
-  - To clear a cookie, set the same cookie name with `Max-Age=0` and matching Path/Domain attributes from when it was set
-  - Cookie attributes in auth-callback: `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800` — logout must match all except Max-Age
----
-
-## 2026-04-10 - US-006
-- Created /login page at src/routes/login/+page.svelte
-- Page displays "Career Intelligence Workshop" branding and "Sign in to join the workshop" subtitle
-- Google sign-in button with official Google 'G' multi-color logo SVG, styled to match existing design system
-- Button navigates to /.netlify/functions/auth-login, passing redirect param if present in URL
-- On mount, checks /.netlify/functions/auth-session — redirects to /interview if already authenticated
-- Uses existing CSS variables (--color-surface, --color-border, etc.) for dark mode compatibility
-- Files changed: src/routes/login/+page.svelte (new)
-- **Learnings for future iterations:**
-  - Use `$derived()` to reactively read URL search params from `$page.url.searchParams`
-  - The `.ws-card` and `.ws-container` classes provide the standard centered card layout — use max-width on the card for narrower forms
-  - Google branding SVG paths for the 'G' logo: 4 paths with colors #4285F4, #34A853, #FBBC05, #EA4335
-  - Use `window.location.href` for navigation to Netlify functions (not SvelteKit `goto`) since they're outside the SvelteKit router
----
-
-## 2026-04-10 - US-007
-- Created +page.server.js for /interview route with server-side auth check
-- Load function reads `session` cookie, verifies JWT with jsonwebtoken
-- If missing/invalid, redirects to /login?redirect=/interview (preserving query params like ?code=)
-- If valid, returns user profile { name, email, picture } as page data
-- Files changed: src/routes/interview/+page.server.js (new)
-- **Learnings for future iterations:**
-  - SvelteKit server load functions have access to `cookies` via the event object — use `cookies.get('session')` instead of manual header parsing
-  - `jsonwebtoken` can be imported as ES module in SvelteKit server files (`import jwt from 'jsonwebtoken'`) despite being a CJS package — SvelteKit handles interop
-  - Use `throw redirect(302, url)` from `@sveltejs/kit` for server-side redirects in load functions
-  - `url.pathname + url.search` preserves the full path with query params for redirect round-trips
-  - The user data returned from load is available in the page component via `export let data` (Svelte 4) or `let { data } = $props()` (Svelte 5)
----
-
-## 2026-04-10 - US-008
-- Auto-fill student name from Google profile, skip name entry in EntryScreen
-- +page.svelte: Accept `data` from server load, set `studentName` in interview store on mount from `data.user.name`
-- EntryScreen.svelte: Accept `googleName` prop, initialize `nameInput` to it, hide name field when present, show welcome message
-- Files changed: src/routes/interview/+page.svelte, src/lib/components/interview/EntryScreen.svelte
-- **Learnings for future iterations:**
-  - Props from `+page.server.js` load are accessed via `let { data } = $props()` in Svelte 5 pages — this was already documented but now confirmed in practice
-  - `nameInput = $state(googleName)` captures the initial prop value — this is fine since googleName doesn't change after mount
-  - The interview store's `update()` method auto-persists to localStorage, so setting `studentName` via `interviewState.update()` automatically writes `ws_studentName` to localStorage
-  - EntryScreen validation still works with pre-filled googleName since `nameInput` is initialized to it — no need to change validation logic
----
-
-## 2026-04-10 - US-009
-- Stored authenticated user profile in Netlify Blobs at `user:{email}` key in auth-callback (name, email, picture, authenticatedAt)
-- Extracted parseCookies to shared lib at netlify/functions/lib/cookies.js (used by auth-session and workshop-join)
-- Updated workshop-join to parse session cookie, extract email from JWT, and store in room's `studentEmails` field
-- Room blob now has optional `studentEmails: { student1: "email", student2: "email" }` mirroring the `students` structure
-- Email is stored on both initial join and rejoin if authenticated
-- Files changed: netlify/functions/lib/cookies.js (new), netlify/functions/auth-callback.js, netlify/functions/auth-session.js, netlify/functions/workshop-join.js
-- **Learnings for future iterations:**
-  - Cookie parsing was duplicated in auth-session — extracted to lib/cookies.js for reuse across functions
-  - Non-fatal blob operations (like storing user profile) should be wrapped in try/catch to avoid blocking the main flow
-  - Room blobs may lack `studentEmails` from older sessions — always guard with `if (!room.studentEmails)` before accessing
-  - The `verifyJwt` function throws on invalid tokens — wrap in try/catch when the caller should degrade gracefully (e.g., unauthenticated join)
+  - Dashboard uses client-side auth (sessionStorage `ws_dash_auth`) unlike interview page (server-side JWT)
+  - `auth-session` returns `{ authenticated: true, user: { name, email, picture } }` — check `res.ok` before parsing
 ---

@@ -1,197 +1,81 @@
 {
   "project": "Career Workshop MVP",
-  "branchName": "ralph/google-oauth",
-  "description": "Google OAuth Sign-In - Gate /interview access behind Google authentication, auto-fill student name, show authenticated users on instructor dashboard",
+  "branchName": "ralph/user-profile-logout",
+  "description": "User Profile Menu & Logout - Display Google profile avatar in top-right corner with dropdown menu showing name, email, and logout action across all authenticated pages",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add JWT utility and session secret environment variable",
-      "description": "As a developer, I need a shared utility for signing and verifying JWTs so the auth functions can create and validate session tokens.",
+      "title": "Create UserProfileMenu component with avatar display",
+      "description": "As a developer, I need a reusable Svelte component that displays the user's Google profile picture as a small circle and renders a fallback avatar when no picture is available.",
       "acceptanceCriteria": [
-        "Create netlify/functions/lib/jwt.js with signJwt(payload) and verifyJwt(token) functions using the jsonwebtoken npm package",
-        "JWT is signed with SESSION_SECRET env var, expires in 8 hours",
-        "Add jsonwebtoken to package.json dependencies",
-        "Add SESSION_SECRET to .env.example (not .env) as a placeholder",
+        "Create src/lib/components/UserProfileMenu.svelte that accepts name, email, and picture props",
+        "Display Google profile picture as a 36px circle using border-radius: 50% and object-fit: cover",
+        "Add referrerpolicy='no-referrer' to the img element for Google-hosted images",
+        "If picture prop is empty or null, render a fallback circle with the first letter of the user's name",
+        "Fallback uses --ci-accent background with white text, matching the app's design system",
+        "Avatar has a subtle border/ring on hover to indicate it is clickable (cursor: pointer)",
+        "Component uses existing CSS variables (--ci-surface, --ci-text, --ci-border, --ci-accent) for light/dark theme support",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "This is a foundational utility used by auth-callback (US-003) and auth-session (US-004). Keep it minimal — just sign and verify."
+      "notes": "This is the base component. The dropdown menu is added in US-002. Keep the component self-contained — it will be placed in page headers in later stories."
     },
     {
       "id": "US-002",
-      "title": "Create auth-login Netlify Function to initiate Google OAuth flow",
-      "description": "As a student, I need an endpoint that redirects me to Google's consent screen so I can sign in with my Google account.",
+      "title": "Add dropdown menu with user info and logout option",
+      "description": "As a user, I want to click my profile picture to see my account details and a logout option so I can manage my session.",
       "acceptanceCriteria": [
-        "Netlify Function at netlify/functions/auth-login.js handles GET requests",
-        "Constructs Google OAuth 2.0 authorization URL with client_id, redirect_uri, response_type=code, scope=openid+profile+email",
-        "Reads GOOGLE_CLIENT_ID from environment variables",
-        "Accepts an optional 'redirect' query param and passes it through as OAuth state parameter (for preserving ?code= workshop session code)",
-        "Returns 302 redirect to the Google authorization URL",
-        "Typecheck passes"
+        "Clicking the avatar toggles a dropdown menu below the avatar, aligned to the right edge",
+        "Dropdown displays the user's Google profile picture (larger, ~48px), full name, and email address",
+        "Dropdown includes a 'Sign out' button styled with existing .ws-btn or similar design system classes",
+        "Dropdown closes when clicking outside of it (use window click listener with stopPropagation on the menu)",
+        "Dropdown closes when pressing Escape key",
+        "Dropdown has subtle box-shadow and border consistent with .ws-card styling",
+        "Dropdown does not overflow the viewport on mobile (right-aligned with minimum right: 8px from viewport edge)",
+        "The 'Sign out' button dispatches a 'logout' event from the component (actual logout logic handled by parent)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "The redirect_uri should point to /.netlify/functions/auth-callback. The state param preserves the original URL the student was trying to reach."
+      "notes": "The component dispatches a 'logout' event rather than calling the API directly — this keeps the component reusable and lets each page handle logout + cleanup as needed."
     },
     {
       "id": "US-003",
-      "title": "Create auth-callback Netlify Function to handle OAuth response",
-      "description": "As a developer, I need an endpoint that exchanges Google's authorization code for tokens, extracts the user profile, and sets a session cookie.",
+      "title": "Add UserProfileMenu to interview page header",
+      "description": "As a student on the interview page, I want to see my profile picture in the top-right corner so I know I'm signed in and can log out.",
       "acceptanceCriteria": [
-        "Netlify Function at netlify/functions/auth-callback.js handles GET requests",
-        "Exchanges the authorization code for tokens by POSTing to https://oauth2.googleapis.com/token",
-        "Extracts name, email, and picture from the Google ID token (decode JWT payload) or calls the userinfo endpoint",
-        "Creates a signed JWT containing name, email, and picture using the jwt utility from US-001",
-        "Sets an HTTP-only, Secure, SameSite=Lax cookie named 'session' with the JWT, max-age 28800 (8 hours)",
-        "Redirects to /interview (or to the URL from the state parameter if present, preserving query params like ?code=)",
-        "Typecheck passes"
+        "UserProfileMenu is rendered in the top-right corner of the interview page header (.ws-header)",
+        "User data (name, email, picture) is passed from the existing data.user prop provided by +page.server.js",
+        "Avatar is positioned with position: absolute, right: 24px, top: 50%, transform: translateY(-50%) relative to the header so it does not disturb the centered layout",
+        "On the 'logout' event: POST to /.netlify/functions/auth-logout, clear ws_* localStorage keys, then redirect to /login using window.location.href",
+        "Profile menu is visible on all interview sub-screens (entry, rooms, waiting, interview, debrief)",
+        "On mobile viewports (<=600px), avatar uses right: 16px and dropdown stays within viewport bounds",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Uses GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars. The redirect_uri must match what was used in auth-login."
+      "notes": "The interview page header uses .ws-header with centered text. The avatar must be absolutely positioned so it floats in the top-right without pushing the centered title. The header container needs position: relative if it doesn't already have it."
     },
     {
       "id": "US-004",
-      "title": "Create auth-session Netlify Function to check authentication status",
-      "description": "As a developer, I need an endpoint that returns the current user's profile if authenticated or 401 if not, so the frontend can check auth state.",
+      "title": "Add UserProfileMenu to dashboard page header",
+      "description": "As an instructor on the dashboard, I want to see my profile picture and be able to log out.",
       "acceptanceCriteria": [
-        "Netlify Function at netlify/functions/auth-session.js handles GET requests",
-        "Parses the 'session' cookie from the request headers",
-        "Verifies the JWT using the jwt utility from US-001",
-        "If valid, returns 200 with JSON body: { authenticated: true, user: { name, email, picture } }",
-        "If missing or invalid, returns 401 with JSON body: { authenticated: false }",
-        "Typecheck passes"
+        "UserProfileMenu is rendered in the top-right corner of the dashboard page header (.ws-header--wide)",
+        "User data is fetched from /.netlify/functions/auth-session on dashboard mount (dashboard has its own auth check)",
+        "Avatar is positioned the same way as on the interview page (absolute, right-aligned in header)",
+        "On the 'logout' event: POST to /.netlify/functions/auth-logout, clear sessionStorage dashboard auth, then redirect to /login",
+        "Profile menu does not break the existing dashboard header layout or the 'Copy Join Link' button",
+        "On mobile viewports, avatar uses right: 16px and dropdown stays within viewport bounds",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
       "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-005",
-      "title": "Create auth-logout Netlify Function",
-      "description": "As a student, I need an endpoint that clears my session cookie so I can sign out.",
-      "acceptanceCriteria": [
-        "Netlify Function at netlify/functions/auth-logout.js handles POST requests",
-        "Clears the 'session' cookie by setting it with max-age=0 and the same path/domain attributes",
-        "Returns 200 with JSON body: { success: true }",
-        "Typecheck passes"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-006",
-      "title": "Create the /login page with Google sign-in button",
-      "description": "As a student, I want a login page with a 'Sign in with Google' button so I can authenticate before accessing the workshop.",
-      "acceptanceCriteria": [
-        "SvelteKit route exists at src/routes/login/+page.svelte",
-        "/login page displays the application name/branding and a brief instruction ('Sign in to join the workshop')",
-        "Page has a 'Sign in with Google' button styled per Google branding guidelines (Google 'G' logo, 'Sign in with Google' text)",
-        "Clicking the button navigates to /.netlify/functions/auth-login (passing the current redirect URL if a ?redirect param exists)",
-        "On mount, page calls /.netlify/functions/auth-session — if already authenticated, redirects to /interview automatically",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Keep the page simple and focused. Use existing app styles/colors for consistency."
-    },
-    {
-      "id": "US-007",
-      "title": "Protect the /interview route with auth redirect",
-      "description": "As the system, I need to redirect unauthenticated users from /interview to /login so only signed-in students can access the workshop.",
-      "acceptanceCriteria": [
-        "Add a +layout.server.js (or +page.server.js) for the /interview route that checks the session cookie",
-        "If the session cookie is missing or JWT is invalid, redirect to /login?redirect=/interview (preserving any query params like ?code=SESSION_CODE)",
-        "If authenticated, pass the user profile (name, email, picture) to the page via the load function",
-        "After successful login, the student is redirected back to /interview with their original query params intact",
-        "Typecheck passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "The JWT verification should happen server-side in the load function. Import the jwt utility or decode inline since this runs in SvelteKit server context."
-    },
-    {
-      "id": "US-008",
-      "title": "Auto-fill student name from Google profile and skip name entry",
-      "description": "As a student, I want my name automatically filled from my Google account so I skip the manual name entry step.",
-      "acceptanceCriteria": [
-        "The authenticated user's Google display name is passed from the layout/page load data to the interview page",
-        "On the interview page, if the user is authenticated and has a Google name, skip the EntryScreen name input step",
-        "The Google display name is stored in localStorage as ws_studentName for consistency with the existing flow",
-        "The name appears correctly in room picker, waiting screen, and interview screen",
-        "The EntryScreen still shows for the session code input step (only name entry is skipped)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "The existing flow uses ws_studentName in localStorage throughout. Set it from the Google profile so all downstream components work unchanged."
-    },
-    {
-      "id": "US-009",
-      "title": "Store authenticated user identity in Netlify Blobs",
-      "description": "As a developer, I need to persist each authenticated user's Google profile server-side so the instructor dashboard can show who signed in.",
-      "acceptanceCriteria": [
-        "In auth-callback, after successful authentication, store the user profile in Netlify Blobs under key user:{email}",
-        "Stored data includes: name, email, picture (avatar URL), and authenticatedAt timestamp",
-        "In workshop-join, when a student joins a room, add their email to the room blob's students entry if authenticated",
-        "The email field is read from the session cookie JWT in workshop-join",
-        "Typecheck passes"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "workshop-join already receives the student name. Now it also needs to parse the session cookie to get the email and associate it with the student in the room."
-    },
-    {
-      "id": "US-010",
-      "title": "Display authenticated students on instructor dashboard",
-      "description": "As an instructor, I want to see which students have authenticated and their Google account info on my dashboard.",
-      "acceptanceCriteria": [
-        "Instructor dashboard shows a list/table of authenticated students for the current session",
-        "Each entry displays: student name, email, circular avatar thumbnail, and sign-in time",
-        "Only students who have both authenticated AND joined a session room are shown",
-        "List updates on dashboard refresh or poll cycle",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 10,
-      "passes": false,
-      "notes": "The dashboard already polls for room data. Extend the room data response to include student emails, then look up user:{email} blobs for avatar and sign-in time."
-    },
-    {
-      "id": "US-011",
-      "title": "Add sign-out button to the interview page",
-      "description": "As a student, I want a sign-out button so I can switch Google accounts or end my authenticated session.",
-      "acceptanceCriteria": [
-        "A small, unobtrusive 'Sign out' button is visible in the top-right corner of the /interview page",
-        "Clicking it calls /.netlify/functions/auth-logout (POST)",
-        "After logout, clears ws_studentName and other ws_* localStorage keys",
-        "Redirects the user to /login",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 11,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-012",
-      "title": "Add loading spinner between Google redirect and interview page",
-      "description": "As a student, I want visual feedback while my session is being established after signing in with Google.",
-      "acceptanceCriteria": [
-        "After the auth-callback redirect lands on /interview, a brief loading/spinner screen is shown while the auth-session check completes",
-        "The spinner displays a message like 'Signing you in...'",
-        "Once auth is confirmed, the spinner transitions to the normal interview flow (EntryScreen for session code)",
-        "If auth check fails, redirect to /login",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": false,
-      "notes": "This may already be handled naturally by the layout load function from US-007. Only add if there's a visible delay between redirect and page render."
+      "notes": "The dashboard currently uses sessionStorage for its own password-based auth. Logout should clear both the session cookie (via auth-logout) and any sessionStorage keys used by the dashboard."
     }
   ]
 }
