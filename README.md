@@ -58,7 +58,13 @@ Once students start joining, the dashboard shows:
 
 The dashboard auto-refreshes every **15 seconds** with lightweight pulse checks every **2 seconds**.
 
-#### 3. Understanding Status Colors
+#### 3. Student Presence & Moving Students
+
+Each student name shows a **green dot** (online) or **red dot** (offline) indicator. Offline students display a timestamp (e.g., "offline since 2:34 PM").
+
+If a student's partner has been offline for more than 2 minutes, a **Move Student** button appears on the room card. Use it to move the stranded student to a different room with an available slot. Both students will see a transition screen and the current round restarts with the new pairing.
+
+#### 4. Understanding Status Colors
 
 | Status | Meaning | Trigger |
 |--------|---------|---------|
@@ -68,7 +74,7 @@ The dashboard auto-refreshes every **15 seconds** with lightweight pulse checks 
 
 Classification uses a **hybrid approach**: simple heuristics catch obvious Red cases instantly (no AI cost), and the AI classifies nuanced Yellow vs. Green based on note content quality.
 
-#### 4. Send Nudges
+#### 5. Send Nudges
 
 1. Click **Send Nudge** on any room card
 2. Choose from three pre-loaded suggestions or write your own:
@@ -77,7 +83,7 @@ Classification uses a **hybrid approach**: simple heuristics catch obvious Red c
    - *"Try to get more specific — names, timelines, outcomes."*
 3. Click **Send Nudge** — it appears as a banner on the students' screen within 8 seconds
 
-#### 5. Analytics
+#### 6. Analytics
 
 After a session ends, view the **Analytics** tab for post-session insights including participation metrics and AI-driven analysis.
 
@@ -125,6 +131,13 @@ If the facilitator sends a nudge, it appears as a banner at the top of your scre
 
 Your notes auto-save after you stop typing, so you won't lose work if you accidentally close the tab. Your session also persists in localStorage — refreshing the page resumes where you left off.
 
+#### 6. Disconnection & Reconnection
+
+- If your partner disconnects, you'll see a yellow banner: *"Your partner appears to be disconnected."* — you can keep working.
+- When your partner comes back, you'll see a toast: *"Your partner is back online!"*
+- If **you** disconnect (close the tab, lose network), your work is auto-saved. When you come back and log in again, you'll see a welcome-back toast confirming your round and role.
+- If your partner is gone for a long time, the facilitator may move you to a different room. You'll see a transition screen introducing your new partner, and the current round restarts fresh.
+
 ---
 
 ## Technical Architecture
@@ -154,11 +167,13 @@ career-workshop-mvp/
 │   │   │   ├── dashboard.js             # Dashboard state
 │   │   │   └── theme.js                 # Theme management
 │   │   └── components/
+│   │       ├── Toast.svelte             # Reusable auto-dismiss toast notifications
 │   │       ├── interview/
 │   │       │   ├── EntryScreen.svelte   # Session code + name entry
 │   │       │   ├── RoomPicker.svelte    # Choose available room
 │   │       │   ├── WaitingScreen.svelte # Wait for partner
 │   │       │   ├── InterviewScreen.svelte # Notes, follow-ups, profiles
+│   │       │   ├── PartnerChangeScreen.svelte # Transition screen for partner changes
 │   │       │   └── CompleteScreen.svelte  # Session complete
 │   │       └── dashboard/
 │   │           ├── LoginScreen.svelte   # Password auth
@@ -168,6 +183,7 @@ career-workshop-mvp/
 │   │           ├── RoomCard.svelte      # Individual room status card
 │   │           ├── OverviewBar.svelte   # Aggregate status bar
 │   │           ├── NudgeModal.svelte    # Send nudge dialog
+│   │           ├── MoveStudentModal.svelte # Move student between rooms dialog
 │   │           └── SessionCard.svelte   # Session list item
 │   └── routes/
 │       ├── +page.svelte                 # Root redirect
@@ -187,6 +203,7 @@ career-workshop-mvp/
 │       ├── workshop-classify.js         # POST: classify room (heuristic + AI)
 │       ├── workshop-classify-inactive.js # GET: flag rooms with no heartbeat >90s
 │       ├── workshop-nudge.js            # POST: send nudge / GET: poll unread nudges
+│       ├── workshop-move-student.js     # POST: move student between rooms
 │       ├── workshop-followup.js         # POST: AI generates follow-up questions
 │       ├── workshop-profile.js          # POST: AI generates capability profile
 │       └── workshop-analytics.js        # GET: post-session analytics
@@ -257,7 +274,11 @@ All data lives in a single Blobs store called `workshop` with composite keys:
   ],
   "nudges": [
     { "message": "Try to get more specific...", "timestamp": "...", "read": false }
-  ]
+  ],
+  "presence": {
+    "student1": { "online": true, "lastSeen": "2026-03-20T10:12:30Z" },
+    "student2": { "online": true, "lastSeen": "2026-03-20T10:12:28Z" }
+  }
 }
 ```
 
@@ -281,6 +302,7 @@ All endpoints are at `/.netlify/functions/`:
 | `workshop-classify-inactive` | GET | Check inactivity: `?sessionId=xxx` |
 | `workshop-nudge` | POST | Send nudge: `{ sessionId, roomId, message }` |
 | `workshop-nudge` | GET | Poll nudges: `?sessionId=xxx&roomId=yyy` |
+| `workshop-move-student` | POST | Move student: `{ sessionId, studentName, fromRoomId, toRoomId }` |
 | `workshop-followup` | POST | AI follow-ups: `{ sessionId, roomId, notes }` |
 | `workshop-profile` | POST | Capability profile: `{ sessionId, roomId, studentName, round }` |
 | `workshop-analytics` | GET | Session analytics: `?sessionId=xxx` |
@@ -301,7 +323,7 @@ Three AI functions, all using Claude Sonnet 4.6 via a shared wrapper (`netlify/f
 
 | What | Interval | Direction | Purpose |
 |------|----------|-----------|---------|
-| Heartbeat | 15s | Student → backend | Keeps room "alive" for inactivity detection |
+| Heartbeat | 15s | Student → backend | Keeps room "alive", updates per-student presence (online/lastSeen) |
 | Nudge poll | 8s | Student ← backend | Checks for new facilitator nudges |
 | Storyteller poll | 5s | Student ← backend | Detects round transitions |
 | Pulse check | 2s | Dashboard ← backend | Lightweight status updates |
@@ -337,6 +359,10 @@ Set these in the Netlify dashboard under **Site settings > Environment variables
 | `ANTHROPIC_API_KEY` | Yes | Anthropic API key for Claude AI calls |
 | `SITE_ID` | Yes | Netlify site ID (for Blobs storage) |
 | `NETLIFY_PAT` | Yes | Netlify Personal Access Token (for Blobs storage) |
+| `GOOGLE_CLIENT_ID` | Yes | Google OAuth 2.0 client ID |
+| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth 2.0 client secret |
+| `SESSION_SECRET` | Yes | Secret for signing session JWTs |
+| `OAUTH_REDIRECT_URI` | Yes | OAuth callback URL (e.g., `https://your-site.netlify.app/.netlify/functions/auth-callback`) |
 
 ### Getting a Netlify PAT
 
@@ -398,7 +424,7 @@ npx netlify deploy --prod
 
 ## Security Notes
 
-- The dashboard password is a simple client-side check for MVP. Not suitable for production — replace with proper auth.
+- Student authentication uses Google OAuth 2.0 with HTTP-only session cookies (JWT, 8-hour expiry). The dashboard still uses a simple client-side password check for MVP.
 - The `NETLIFY_PAT` has broad access to your Netlify account. For production, scope it down or use a service-level token.
 - Student names are stored in Netlify Blobs with no encryption. For production, consider PII handling requirements.
 - CORS is set to `*` for all function endpoints. For production, restrict to your domain.
