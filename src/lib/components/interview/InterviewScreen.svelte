@@ -107,21 +107,19 @@
 		}
 	}
 
-	// Restore notes/followup text from server submissions when localStorage is empty (tab-close case)
+	// Hydrate notes/followup from server submissions on reconnect
+	// Server state takes priority over localStorage — localStorage may be stale if sendBeacon saved newer data
 	if (browser && resumeRoomData) {
 		const submissions = resumeRoomData.submissions || [];
 		const currentRound = $interviewState.round;
-		if (!notesText) {
-			const notesSubmission = submissions.find((s) => s.round === `round${currentRound}-notes`);
-			if (notesSubmission && notesSubmission.notes) {
-				notesText = notesSubmission.notes;
-			}
+		const notesSubmission = submissions.find((s) => s.round === `round${currentRound}-notes`);
+		if (notesSubmission && notesSubmission.notes) {
+			// Prefer server data: it reflects the latest sendBeacon or debounced save
+			notesText = notesSubmission.notes;
 		}
-		if (!followupText) {
-			const followupSubmission = submissions.find((s) => s.round === `round${currentRound}-followup`);
-			if (followupSubmission && followupSubmission.notes) {
-				followupText = followupSubmission.notes;
-			}
+		const followupSubmission = submissions.find((s) => s.round === `round${currentRound}-followup`);
+		if (followupSubmission && followupSubmission.notes) {
+			followupText = followupSubmission.notes;
 		}
 	}
 
@@ -372,13 +370,32 @@
 		}, 5000);
 	}
 
-	// Warn before closing/refreshing when textareas have content
+	// Autosave via sendBeacon on beforeunload (tab close / navigate away)
 	$effect(() => {
 		if (!browser) return;
 		const hasContent = notesText.trim().length > 0 || followupText.trim().length > 0;
 		if (hasContent) {
 			const handler = (/** @type {BeforeUnloadEvent} */ e) => {
 				e.preventDefault();
+				// Fire sendBeacon to save current text before page unloads
+				const basePayload = {
+					sessionId: $interviewState.sessionId,
+					roomId,
+					studentName: $interviewState.studentName,
+					aboutStudent: partnerName
+				};
+				if (notesText.trim()) {
+					navigator.sendBeacon(
+						`${CFG.api_base}/workshop-submit`,
+						new Blob([JSON.stringify({ ...basePayload, notes: notesText.trim(), round: `round${round}-notes` })], { type: 'application/json' })
+					);
+				}
+				if (followupText.trim() && phase === 'followup') {
+					navigator.sendBeacon(
+						`${CFG.api_base}/workshop-submit`,
+						new Blob([JSON.stringify({ ...basePayload, notes: followupText.trim(), round: `round${round}-followup` })], { type: 'application/json' })
+					);
+				}
 			};
 			window.addEventListener('beforeunload', handler);
 			return () => window.removeEventListener('beforeunload', handler);

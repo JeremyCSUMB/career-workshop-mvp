@@ -81,7 +81,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-003 (Toast component) and US-004 (presence tracking on interview page). The offline→online transition detection from US-004 can trigger this toast."
     },
     {
@@ -97,7 +97,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "navigator.sendBeacon is fire-and-forget but more reliable than fetch during page teardown. The existing debounced save (1500ms) handles continuous typing; this covers the tab-close edge case. The resume flow already exists — this story enhances it to prefer server state."
     },
     {

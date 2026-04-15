@@ -82,3 +82,26 @@
   - Partner slot identification: match `$interviewState.studentName` against `room.students.student1`/`student2`, then use the other slot's presence
   - The `partnerPreviousOnline = null` pattern prevents showing banners/toasts on initial load — use it for US-005 transition detection
 ---
+
+## 2026-04-15 - US-005
+- Added partner reconnection toast: when partner transitions from offline→online, shows "Your partner is back online!" success toast
+- Imported Toast component from US-003, added `showReconnectToast` state variable
+- Added `$effect` that watches `partnerPreviousOnline === false && partnerOnline === true` to detect the transition
+- Toast auto-dismisses after 5 seconds, does not show on initial page load (guarded by `partnerPreviousOnline` starting as `null`)
+- Files changed: `src/lib/components/interview/InterviewScreen.svelte`
+- **Learnings for future iterations:**
+  - The `$effect` for transition detection is clean: just watch the two reactive state vars — Svelte 5 re-runs the effect when either changes
+  - Toast `bind:visible` pattern makes it easy to trigger from any `$effect` — just set the bound var to `true`
+---
+
+## 2026-04-15 - US-006
+- Added `navigator.sendBeacon` autosave on `beforeunload` event — saves current notes/followup text to server before tab closes
+- Uses `Blob` with `application/json` content type to match `workshop-submit` endpoint expectations
+- Updated hydration logic to prefer server submissions over localStorage on reconnect — server data reflects the latest sendBeacon/debounced save
+- Followup text is only beacon-saved when phase is 'followup' (avoids sending stale data from previous phases)
+- Files changed: `src/lib/components/interview/InterviewScreen.svelte`, `prd.json`
+- **Learnings for future iterations:**
+  - `navigator.sendBeacon` requires a `Blob` with explicit content type for JSON payloads — `new Blob([JSON.stringify(data)], { type: 'application/json' })`
+  - The `workshop-submit` endpoint's upsert pattern (findIndex by studentName + round) handles beacon saves seamlessly — no server changes needed
+  - Server-priority hydration: when `resumeRoomData` exists, always use server submission data over localStorage, since sendBeacon may have saved data that localStorage missed
+---
