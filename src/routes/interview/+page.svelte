@@ -235,6 +235,36 @@
 		}
 	}
 
+	function handleMoved({ newRoomId, newRoom }) {
+		// Stop existing polls — new room means new heartbeat target
+		stopAllPolling();
+		clearEphemeralKeys();
+
+		// Extract students from the new room
+		const students = extractStudentNames(newRoom.students);
+		const newRound = newRoom.currentRound || 1;
+
+		// Update store with new room info
+		interviewState.update((s) => ({
+			...s,
+			roomId: newRoomId,
+			round: newRound,
+			students,
+			role: null,
+			partnerName: ''
+		}));
+
+		// Store new room data for the partner change screen
+		resumeRoomData = null;
+
+		// Restart heartbeat for the new room
+		startHeartbeat();
+		startNudgePolling();
+
+		// Transition to partner-change screen (US-012 will implement the actual component)
+		goToScreen('partner-change');
+	}
+
 	function handleComplete() {
 		goToScreen('complete');
 	}
@@ -451,7 +481,12 @@
 			{:else if screen === 'waiting'}
 				<WaitingScreen students={$interviewState.students} onChangeRoom={handleChangeRoom} />
 			{:else if screen === 'interview'}
-				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} {resumeRoomData} {rejoined} />
+				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} onMoved={handleMoved} {resumeRoomData} {rejoined} />
+			{:else if screen === 'partner-change'}
+				<div class="ws-card" style="text-align:center;padding:40px 24px;">
+					<h2 style="margin:0 0 12px;">New Partner</h2>
+					<p style="color:var(--ci-text-muted);margin:0 0 24px;">You've been paired with a new partner. Getting ready...</p>
+				</div>
 			{:else if screen === 'complete'}
 				<CompleteScreen onChangeRoom={handleChangeRoom} onSwitchSession={handleSwitchSession} onLeave={handleLeave} />
 			{:else if screen === 'ended'}

@@ -131,7 +131,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "The dashboard already polls workshop-pulse every 2s. This story consumes the presence data added in US-002 and renders it visually next to student names in the room cards."
     },
     {
@@ -151,7 +151,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Use read-modify-write on both room blobs. The movedTo/movedFrom fields are important for client-side detection. The target room's currentRound should be set to the moved student's currentRound so the round restarts fresh."
     },
     {
@@ -171,7 +171,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "The 2-minute offline threshold should be computed from the presence lastSeen timestamp in the pulse data. Only show the button for the online student — moving the offline student is not supported."
     },
     {
@@ -188,7 +188,7 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "The movedTo field is set by the workshop-move-student endpoint (US-009). Poll cycle already hits workshop-room — just need to check the response for move indicators."
     },
     {

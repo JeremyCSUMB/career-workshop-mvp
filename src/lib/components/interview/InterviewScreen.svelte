@@ -7,7 +7,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
-	let { onComplete, onChangeRoom, resumeRoomData = null, rejoined = false } = $props();
+	let { onComplete, onChangeRoom, onMoved = null, resumeRoomData = null, rejoined = false } = $props();
 
 	// Partner presence state
 	let partnerOnline = $state(true); // assume online initially
@@ -304,6 +304,41 @@
 		partnerOnline = isOnline;
 	}
 
+	// Detect if the student has been moved to a different room by the instructor
+	async function checkForRoomMove(room) {
+		const myName = $interviewState.studentName;
+		if (!room.students) return false;
+
+		// Check if student is still in this room
+		const stillInRoom = room.students.student1 === myName || room.students.student2 === myName;
+		if (stillInRoom) return false;
+
+		// Student is not in the room — check for movedTo marker
+		let movedToInfo = null;
+		if (room.student1_movedTo && room.student1_movedTo.studentName === myName) {
+			movedToInfo = room.student1_movedTo;
+		} else if (room.student2_movedTo && room.student2_movedTo.studentName === myName) {
+			movedToInfo = room.student2_movedTo;
+		}
+
+		if (!movedToInfo) return false;
+
+		// Fetch the new room data
+		try {
+			const newRoomData = await api('workshop-room', {
+				params: { sessionId: $interviewState.sessionId, roomId: movedToInfo.roomId }
+			});
+			const newRoom = newRoomData.room || newRoomData;
+
+			if (onMoved) {
+				onMoved({ newRoomId: movedToInfo.roomId, newRoom });
+			}
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
 	function startPresencePoll() {
 		if (presencePollInterval) return;
 		const poll = async () => {
@@ -312,6 +347,15 @@
 					params: { sessionId: $interviewState.sessionId, roomId }
 				});
 				const room = data.room || data;
+
+				// Check if student was moved before updating presence
+				const moved = await checkForRoomMove(room);
+				if (moved) {
+					clearInterval(presencePollInterval);
+					presencePollInterval = null;
+					return;
+				}
+
 				updatePartnerPresence(room);
 			} catch {}
 		};
@@ -329,6 +373,14 @@
 					params: { sessionId: $interviewState.sessionId, roomId }
 				});
 				const room = data.room || data;
+
+				// Check if student was moved before processing round changes
+				const moved = await checkForRoomMove(room);
+				if (moved) {
+					clearInterval(storytellerPollInterval);
+					storytellerPollInterval = null;
+					return;
+				}
 
 				// Update presence from the same poll
 				updatePartnerPresence(room);

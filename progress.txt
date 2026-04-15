@@ -29,6 +29,8 @@
 - InterviewScreen has two poll paths: storytellerPoll (5s, round advancement) and presencePoll (5s, interviewer only) — both call `updatePartnerPresence(room)` to track partner status
 - Partner presence slot: match studentName against `room.students.student1`/`student2`, use the opposite slot's presence data
 - Position profile menu in headers with `.ws-header__profile` class: `position:absolute; right:24px; top:50%; transform:translateY(-50%)`
+- movedTo/movedFrom markers on room blobs: `${slot}_movedTo` / `${slot}_movedFrom` with `{ roomId, studentName, timestamp }` — detect moves by checking if studentName is no longer in room.students, then reading the marker
+- Move detection in InterviewScreen: `checkForRoomMove(room)` runs in both poll paths — stops polls and calls `onMoved` callback when a move is detected
 
 ---
 
@@ -116,4 +118,66 @@
   - `workshop-join` returns `rejoined: true` when a student re-registers in a room they were already in — use this to distinguish fresh joins from reconnections
   - Two Toast instances can coexist in the template — they manage their own visibility independently via `bind:visible`
   - The resume flow in `+page.svelte` onMount has two rejoin paths: the localStorage resume (lines ~335-388) and handleJoinRoom with `data.rejoined` — both need the `rejoined` flag
+---
+
+## 2026-04-15 - US-008
+- Added presence indicators (green/red dots) next to student names in dashboard room cards
+- Green dot for online students, red dot for offline students with gray "offline since [time]" timestamp below
+- Added `students` object to workshop-pulse response so dashboard can map student slots to presence data
+- Updated MonitorScreen to pass `_presence` and `_students` through to RoomCard via both pulse quick-update and full refresh enrichment
+- Students with no presence data (empty rooms, old rooms) show no dot — handled by null-checking presence
+- Files changed: `netlify/functions/workshop-pulse.js`, `src/lib/components/dashboard/MonitorScreen.svelte`, `src/lib/components/dashboard/RoomCard.svelte`, `styles.css`
+- **Learnings for future iterations:**
+  - Pulse endpoint returns `presence` keyed by `student1`/`student2` — need the `students` object (also keyed by slot) to map names to presence data
+  - RoomCard gets presence via `room._presence` and student slots via `room._students` — both set in `enrichRoom()` and pulse quick-update
+  - `getPresenceForStudent(name)` maps a student name to their presence slot by matching against `students.student1`/`student2`
+  - Presence updates reactively on the 2s pulse cycle without needing a full refresh — the quick-update path copies presence data
+---
+
+## 2026-04-15 - US-009
+- Created `netlify/functions/workshop-move-student.js` — POST endpoint that atomically moves a student from one room to another
+- Validates session exists, both rooms exist, student is in source room, and target room has an available slot
+- Removes student from source room: clears student slot, email, and resets presence
+- Adds student to target room's first available slot with presence set to online
+- Sets `student1_movedTo`/`student2_movedTo` on source room for stale client write rejection
+- Sets `student1_movedFrom`/`student2_movedFrom` on target room for client-side move detection
+- Preserves submissions in source room (no deletion)
+- Resets target room's `currentRound` to match source room's round, clears `roundStartTime`
+- Returns 409 if target room is full, 200 with `{ success: true, newRoom: targetRoomData }` on success
+- Files changed: `netlify/functions/workshop-move-student.js`
+- **Learnings for future iterations:**
+  - movedTo/movedFrom fields are stored as `${slot}_movedTo` / `${slot}_movedFrom` on the room object (e.g., `student1_movedTo`)
+  - Each marker contains `{ roomId, studentName, timestamp }` for client detection
+  - The endpoint writes both rooms sequentially — no transaction support in Netlify Blobs, so there's a small window where source is updated but target isn't
+  - Target room's currentRound is reset to sourceRoom.currentRound so the pair restarts at the moved student's progress level
+---
+
+## 2026-04-15 - US-010
+- Added "Move Student" button to RoomCard that appears when one student is offline >2 minutes and the other is online
+- Created MoveStudentModal component with two-step flow: room selection → confirmation
+- Modal lists available target rooms (0 or 1 students), shows room number and current student name
+- On confirmation, POSTs to workshop-move-student endpoint; on success triggers full dashboard refresh
+- Handles 409 (room full) by showing error and returning to room selection step
+- Added CSS styles for move room list, room options, and error messages
+- Files changed: `src/lib/components/dashboard/RoomCard.svelte`, `src/lib/components/dashboard/MoveStudentModal.svelte` (new), `src/lib/components/dashboard/MonitorScreen.svelte`, `styles.css`
+- **Learnings for future iterations:**
+  - `moveEligibleStudent` is computed from presence data in RoomCard using a 2-minute threshold — re-evaluates each second via `tick` dependency
+  - MoveStudentModal receives the full `rooms` array from MonitorScreen to compute available targets client-side
+  - The move modal follows the same NudgeModal pattern: overlay click to close, Escape key, focus trapping, previous focus restoration
+  - `onMoveStudent(roomId, studentName)` callback passes both the source room ID and the online student's name to the parent
+---
+
+## 2026-04-15 - US-011
+- Added `checkForRoomMove(room)` async helper to InterviewScreen that detects when the student has been moved out of their room
+- Detection: checks if studentName is no longer in `room.students`, then reads `student1_movedTo`/`student2_movedTo` markers for the new roomId
+- On detection: fetches new room data via `workshop-room`, stops polls, calls `onMoved({ newRoomId, newRoom })` callback
+- Integrated move check into both poll paths (storyteller poll and interviewer presence poll) — runs before presence/round updates
+- Added `handleMoved` handler in `+page.svelte`: stops all polling, clears ephemeral keys, updates store with new roomId/round/students, restarts heartbeat, transitions to `partner-change` screen
+- Added placeholder `partner-change` screen in template (US-012 will implement the full component)
+- Files changed: `src/lib/components/interview/InterviewScreen.svelte`, `src/routes/interview/+page.svelte`, `prd.json`
+- **Learnings for future iterations:**
+  - Move detection must run before presence updates — if the student is gone from the room, there's no partner slot to check
+  - The movedTo marker's `studentName` field lets you match which marker belongs to the moved student (important when slot could be either student1 or student2)
+  - `handleMoved` in +page.svelte clears role/partnerName to null/empty since the new room may have different partner — US-012's partner-change screen will re-determine roles
+  - The `partner-change` screen state is a new screen value that doesn't appear in the `navItems` derived — bottom nav defaults to 'home' for this screen
 ---
