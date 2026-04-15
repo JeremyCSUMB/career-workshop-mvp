@@ -296,93 +296,111 @@
 
 		// Resume from localStorage
 		const s = $interviewState;
-		if (!s.sessionId || !s.roomId || !s.studentName) {
+		if (!s.sessionId || !s.studentName) {
+			// No stored session — clear any stale partial state and show entry
+			if (s.sessionId || s.roomId || s.studentName) interviewState.reset();
 			goToScreen('entry');
 			return;
 		}
 
-		startHeartbeat();
-		startNudgePolling();
+		// Validate stored session is still active on the server before resuming
+		api('workshop-rooms', { params: { sessionId: s.sessionId } }).then((validationData) => {
+			if (validationData.ended) {
+				clearEphemeralKeys();
+				interviewState.reset();
+				sessionEndedMessage = 'Your previous session has ended.';
+				goToScreen('ended');
+				return;
+			}
 
-		if (s.phase === 'complete') {
-			goToScreen('complete');
-			return;
-		}
-
-		if (s.phase === 'interview' || s.phase === 'waiting') {
-			// Re-register via workshop-join first, then fetch full data via workshop-room
-			api('workshop-join', {
-				body: { sessionId: s.sessionId, roomId: s.roomId, studentName: s.studentName }
-			}).then(async (joinData) => {
-				const joinRoom = joinData.room || joinData;
-				const currentRound = joinRoom.currentRound || 1;
-
-				if (currentRound > $interviewState.totalRounds) {
-					interviewState.update((st) => ({ ...st, round: st.totalRounds }));
-					goToScreen('complete');
-					return;
-				}
-
-				// Fetch full room state (includes submissions, aiFollowUps, capabilityProfiles)
-				const roomData = await api('workshop-room', {
-					params: { sessionId: s.sessionId, roomId: s.roomId }
-				});
-
-				if (roomData.ended) {
-					stopAllPolling();
-					clearEphemeralKeys();
-					sessionEndedMessage = 'This session has ended.';
-					goToScreen('ended');
-					return;
-				}
-
-				const room = roomData.room || roomData;
-				const students = extractStudentNames(room.students);
-				const resumeRound = Math.min(currentRound, $interviewState.totalRounds);
-				interviewState.update((st) => ({ ...st, students, round: resumeRound }));
-
-				// Store server data for InterviewScreen to restore followup/profile/notes state
-				resumeRoomData = {
-					aiFollowUps: room.aiFollowUps || [],
-					capabilityProfiles: room.capabilityProfiles || [],
-					submissions: room.submissions || []
-				};
-
-				if (students.length >= 2) {
-					startInterview();
-				} else {
-					goToScreen('waiting');
-					startWaitingPoll();
-				}
-			}).catch((err) => {
-				if (err.message && err.message.includes('session has ended')) {
-					stopAllPolling();
-					clearEphemeralKeys();
-					sessionEndedMessage = 'This session has ended.';
-					goToScreen('ended');
-				} else {
-					goToScreen('entry');
-				}
-			});
-			return;
-		}
-
-		if (s.phase === 'rooms') {
-			api('workshop-rooms', { params: { sessionId: s.sessionId } }).then((data) => {
-				if (data.ended) {
-					clearEphemeralKeys();
-					sessionEndedMessage = 'This session has ended.';
-					goToScreen('ended');
-					return;
-				}
-				if (data.rounds) interviewState.update((st) => ({ ...st, totalRounds: data.rounds, prompts: data.prompts || st.prompts }));
-				rooms = data.rooms || [];
+			// Session is valid — proceed with resume
+			if (!s.roomId) {
+				// Have session but no room yet — show room picker with fresh data
+				if (validationData.rounds) interviewState.update((st) => ({ ...st, totalRounds: validationData.rounds, prompts: validationData.prompts || st.prompts }));
+				rooms = validationData.rooms || [];
 				goToScreen('rooms');
-			}).catch(() => goToScreen('entry'));
-			return;
-		}
+				return;
+			}
 
-		goToScreen('entry');
+			startHeartbeat();
+			startNudgePolling();
+
+			if (s.phase === 'complete') {
+				goToScreen('complete');
+				return;
+			}
+
+			if (s.phase === 'interview' || s.phase === 'waiting') {
+				// Re-register via workshop-join first, then fetch full data via workshop-room
+				api('workshop-join', {
+					body: { sessionId: s.sessionId, roomId: s.roomId, studentName: s.studentName }
+				}).then(async (joinData) => {
+					const joinRoom = joinData.room || joinData;
+					const currentRound = joinRoom.currentRound || 1;
+
+					if (currentRound > $interviewState.totalRounds) {
+						interviewState.update((st) => ({ ...st, round: st.totalRounds }));
+						goToScreen('complete');
+						return;
+					}
+
+					// Fetch full room state (includes submissions, aiFollowUps, capabilityProfiles)
+					const roomData = await api('workshop-room', {
+						params: { sessionId: s.sessionId, roomId: s.roomId }
+					});
+
+					if (roomData.ended) {
+						stopAllPolling();
+						clearEphemeralKeys();
+						sessionEndedMessage = 'This session has ended.';
+						goToScreen('ended');
+						return;
+					}
+
+					const room = roomData.room || roomData;
+					const students = extractStudentNames(room.students);
+					const resumeRound = Math.min(currentRound, $interviewState.totalRounds);
+					interviewState.update((st) => ({ ...st, students, round: resumeRound }));
+
+					// Store server data for InterviewScreen to restore followup/profile/notes state
+					resumeRoomData = {
+						aiFollowUps: room.aiFollowUps || [],
+						capabilityProfiles: room.capabilityProfiles || [],
+						submissions: room.submissions || []
+					};
+
+					if (students.length >= 2) {
+						startInterview();
+					} else {
+						goToScreen('waiting');
+						startWaitingPoll();
+					}
+				}).catch((err) => {
+					if (err.message && err.message.includes('session has ended')) {
+						stopAllPolling();
+						clearEphemeralKeys();
+						sessionEndedMessage = 'This session has ended.';
+						goToScreen('ended');
+					} else {
+						goToScreen('entry');
+					}
+				});
+				return;
+			}
+
+			if (s.phase === 'rooms') {
+				if (validationData.rounds) interviewState.update((st) => ({ ...st, totalRounds: validationData.rounds, prompts: validationData.prompts || st.prompts }));
+				rooms = validationData.rooms || [];
+				goToScreen('rooms');
+				return;
+			}
+
+			goToScreen('entry');
+		}).catch(() => {
+			// Session doesn't exist on the server — clear stale state and start fresh
+			interviewState.reset();
+			goToScreen('entry');
+		});
 	});
 
 	async function handleProfileLogout() {
