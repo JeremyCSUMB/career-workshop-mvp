@@ -3,6 +3,7 @@
 	import { WORKSHOP_CONFIG as CFG } from '$lib/config.js';
 	import { interviewState } from '$lib/stores/interview.js';
 	import WaitingDots from '$lib/components/WaitingDots.svelte';
+	import Toast from '$lib/components/Toast.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
@@ -12,6 +13,7 @@
 	let partnerOnline = $state(true); // assume online initially
 	let partnerPreviousOnline = $state(null); // null = no previous state (initial load)
 	let presencePollInterval = null;
+	let showReconnectToast = $state(false);
 
 	const MIN_CHARS = 80;
 
@@ -403,6 +405,13 @@
 		}
 	});
 
+	// Show reconnection toast when partner transitions from offline to online
+	$effect(() => {
+		if (partnerPreviousOnline === false && partnerOnline === true) {
+			showReconnectToast = true;
+		}
+	});
+
 	$effect(() => {
 		if (role === 'storyteller') {
 			startStorytellerPoll();
@@ -572,3 +581,5 @@
 <div class="ws-btn-row" style="justify-content:center;margin-top:24px;">
 	<button class="ws-btn ws-btn--secondary ws-btn--small" onclick={onChangeRoom}>Change Room</button>
 </div>
+
+<Toast bind:visible={showReconnectToast} message="Your partner is back online!" type="success" duration={5000} />
