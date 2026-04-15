@@ -95,6 +95,8 @@
 		room._phase = getRoomPhase(room);
 		room._lastInputTime = room.lastInputTime || null;
 		room._studentNames = extractStudentNames(room.students);
+		room._students = room.students || {};
+		room._presence = room.presence || null;
 		room._authenticatedStudents = buildAuthStudentList(room);
 	}
 
@@ -171,6 +173,8 @@
 					if (p.roundStartTime) rooms[idx].roundStartTime = p.roundStartTime;
 					if (p.studentNames) rooms[idx]._studentNames = p.studentNames;
 					if (p.currentRound) rooms[idx].currentRound = p.currentRound;
+					if (p.presence) rooms[idx]._presence = p.presence;
+					if (p.students) rooms[idx]._students = p.students;
 				}
 			}
 			rooms = rooms; // trigger reactivity

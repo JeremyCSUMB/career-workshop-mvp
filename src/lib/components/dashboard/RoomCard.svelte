@@ -3,6 +3,8 @@
 
 	let roomId = $derived(room.id || '?');
 	let studentNames = $derived(room._studentNames || []);
+	let students = $derived(room._students || {});
+	let presence = $derived(room._presence || null);
 	let status = $derived(room._status || '');
 	let statusLabel = $derived(status || 'pending');
 	let round = $derived(room.currentRound || 1);
@@ -72,6 +74,21 @@
 		return `${mins}:${String(secs).padStart(2, '0')}`;
 	}
 
+	// Presence helpers
+	function getPresenceForStudent(name) {
+		if (!presence || !name) return null;
+		// Map student name to slot
+		if (students.student1 === name) return presence.student1;
+		if (students.student2 === name) return presence.student2;
+		return null;
+	}
+
+	function formatOfflineSince(lastSeen) {
+		if (!lastSeen) return '';
+		const d = new Date(lastSeen);
+		return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+	}
+
 	// Tick for live updates
 	let tick = $state(0);
 	let tickInterval;
@@ -112,13 +129,43 @@
 			<em style="color:var(--ci-text-muted);">No students yet</em>
 		{:else if isComplete}
 			{#each studentNames as name}
-				<strong>{name}</strong>{' '}
+				{@const p = getPresenceForStudent(name)}
+				<span class="ws-room-card__student-presence">
+					{#if p}<span class="ws-room-card__presence-dot {p.online ? 'ws-room-card__presence-dot--online' : 'ws-room-card__presence-dot--offline'}"></span>{/if}
+					<strong>{name}</strong>
+					{#if p && !p.online && p.lastSeen}
+						<span class="ws-room-card__offline-since">offline since {formatOfflineSince(p.lastSeen)}</span>
+					{/if}
+				</span>
 			{/each}
 		{:else if interviewerName}
-			<strong>{interviewerName}</strong> interviewing <strong>{storytellerName}</strong>
+			{@const pInt = getPresenceForStudent(interviewerName)}
+			{@const pSt = getPresenceForStudent(storytellerName)}
+			<span class="ws-room-card__student-presence">
+				{#if pInt}<span class="ws-room-card__presence-dot {pInt.online ? 'ws-room-card__presence-dot--online' : 'ws-room-card__presence-dot--offline'}"></span>{/if}
+				<strong>{interviewerName}</strong>
+				{#if pInt && !pInt.online && pInt.lastSeen}
+					<span class="ws-room-card__offline-since">offline since {formatOfflineSince(pInt.lastSeen)}</span>
+				{/if}
+			</span>
+			{' '}interviewing{' '}
+			<span class="ws-room-card__student-presence">
+				{#if pSt}<span class="ws-room-card__presence-dot {pSt.online ? 'ws-room-card__presence-dot--online' : 'ws-room-card__presence-dot--offline'}"></span>{/if}
+				<strong>{storytellerName}</strong>
+				{#if pSt && !pSt.online && pSt.lastSeen}
+					<span class="ws-room-card__offline-since">offline since {formatOfflineSince(pSt.lastSeen)}</span>
+				{/if}
+			</span>
 		{:else}
 			{#each studentNames as name}
-				<strong>{name}</strong>{' '}
+				{@const p = getPresenceForStudent(name)}
+				<span class="ws-room-card__student-presence">
+					{#if p}<span class="ws-room-card__presence-dot {p.online ? 'ws-room-card__presence-dot--online' : 'ws-room-card__presence-dot--offline'}"></span>{/if}
+					<strong>{name}</strong>
+					{#if p && !p.online && p.lastSeen}
+						<span class="ws-room-card__offline-since">offline since {formatOfflineSince(p.lastSeen)}</span>
+					{/if}
+				</span>
 			{/each}
 		{/if}
 	</div>

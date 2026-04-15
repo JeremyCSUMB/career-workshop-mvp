@@ -910,6 +910,40 @@ body {
   font-weight: 600;
 }
 
+.ws-room-card__student-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ws-room-card__presence-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ws-room-card__presence-dot--online {
+  background-color: #22c55e;
+}
+
+.ws-room-card__presence-dot--offline {
+  background-color: #ef4444;
+}
+
+.ws-room-card__offline-since {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-left: 12px;
+  line-height: 1.2;
+}
+
+.dark .ws-room-card__offline-since {
+  color: #6b7280;
+}
+
 .ws-room-card__meta {
   display: flex;
   flex-wrap: wrap;

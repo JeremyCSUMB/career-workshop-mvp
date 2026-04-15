@@ -84,6 +84,7 @@ exports.handler = async (event) => {
         id: data.id,
         studentCount: studentNames.length,
         studentNames,
+        students: students,
         submissionCount: submissions.length,
         wordCount: totalWords,
         lastInputTime: data.lastInputTime || null,
