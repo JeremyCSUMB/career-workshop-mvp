@@ -1,81 +1,234 @@
 {
   "project": "Career Workshop MVP",
-  "branchName": "ralph/user-profile-logout",
-  "description": "User Profile Menu & Logout - Display Google profile avatar in top-right corner with dropdown menu showing name, email, and logout action across all authenticated pages",
+  "branchName": "ralph/session-reconnection",
+  "description": "Session Reconnection & Partner Presence - Students can disconnect and reconnect without losing progress, partners are notified of disconnections, instructors see presence status and can move stranded students",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create UserProfileMenu component with avatar display",
-      "description": "As a developer, I need a reusable Svelte component that displays the user's Google profile picture as a small circle and renders a fallback avatar when no picture is available.",
+      "title": "Add presence data structure to room blob and heartbeat endpoint",
+      "description": "As a developer, I need per-student presence tracking stored in the room blob so that both clients and the dashboard can determine who is online.",
       "acceptanceCriteria": [
-        "Create src/lib/components/UserProfileMenu.svelte that accepts name, email, and picture props",
-        "Display Google profile picture as a 36px circle using border-radius: 50% and object-fit: cover",
-        "Add referrerpolicy='no-referrer' to the img element for Google-hosted images",
-        "If picture prop is empty or null, render a fallback circle with the first letter of the user's name",
-        "Fallback uses --ci-accent background with white text, matching the app's design system",
-        "Avatar has a subtle border/ring on hover to indicate it is clickable (cursor: pointer)",
-        "Component uses existing CSS variables (--ci-surface, --ci-text, --ci-border, --ci-accent) for light/dark theme support",
+        "Add presence field to makeEmptyRoom in workshop-session.js: presence: { student1: { online: false, lastSeen: null }, student2: { online: false, lastSeen: null } }",
+        "Update workshop-heartbeat.js to write the student's lastSeen (ISO timestamp) and online: true into the room blob's presence object",
+        "Identify which student slot (student1/student2) the heartbeating student occupies by matching studentName against room.students",
+        "Add presence_timeout: 30000 to WORKSHOP_CONFIG in src/lib/config.js",
+        "Old rooms without presence field are handled gracefully (initialize presence if missing on heartbeat write)",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "This is the base component. The dropdown menu is added in US-002. Keep the component self-contained — it will be placed in page headers in later stories."
+      "notes": "The existing heartbeat writes to a separate heartbeat:{sessionId}:{roomId} blob. This story adds a write to the main room blob's presence field as well. Use the same read-modify-write pattern used elsewhere in the codebase."
     },
     {
       "id": "US-002",
-      "title": "Add dropdown menu with user info and logout option",
-      "description": "As a user, I want to click my profile picture to see my account details and a logout option so I can manage my session.",
+      "title": "Add presence data to workshop-pulse and workshop-room responses",
+      "description": "As a developer, I need presence data returned in API responses so the client and dashboard can render online/offline status.",
       "acceptanceCriteria": [
-        "Clicking the avatar toggles a dropdown menu below the avatar, aligned to the right edge",
-        "Dropdown displays the user's Google profile picture (larger, ~48px), full name, and email address",
-        "Dropdown includes a 'Sign out' button styled with existing .ws-btn or similar design system classes",
-        "Dropdown closes when clicking outside of it (use window click listener with stopPropagation on the menu)",
-        "Dropdown closes when pressing Escape key",
-        "Dropdown has subtle box-shadow and border consistent with .ws-card styling",
-        "Dropdown does not overflow the viewport on mobile (right-aligned with minimum right: 8px from viewport edge)",
-        "The 'Sign out' button dispatches a 'logout' event from the component (actual logout logic handled by parent)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "workshop-room.js GET response includes the room's presence object",
+        "If a room has no presence field (old rooms), normalize it to { student1: { online: false, lastSeen: null }, student2: { online: false, lastSeen: null } }",
+        "workshop-pulse.js response includes per-room presence data in each room summary",
+        "A student is considered offline if lastSeen is null or older than 30 seconds from current time",
+        "Pulse response includes a computed online boolean per student based on the 30s threshold",
+        "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "The component dispatches a 'logout' event rather than calling the API directly — this keeps the component reusable and lets each page handle logout + cleanup as needed."
+      "notes": "The pulse endpoint returns lightweight summaries. Adding presence is just 2 booleans + 2 timestamps per room — minimal payload increase. Compute the online boolean server-side so clients don't need to duplicate the threshold logic."
     },
     {
       "id": "US-003",
-      "title": "Add UserProfileMenu to interview page header",
-      "description": "As a student on the interview page, I want to see my profile picture in the top-right corner so I know I'm signed in and can log out.",
+      "title": "Create reusable Toast notification component",
+      "description": "As a developer, I need a toast component for showing brief auto-dismissing notifications across the app.",
       "acceptanceCriteria": [
-        "UserProfileMenu is rendered in the top-right corner of the interview page header (.ws-header)",
-        "User data (name, email, picture) is passed from the existing data.user prop provided by +page.server.js",
-        "Avatar is positioned with position: absolute, right: 24px, top: 50%, transform: translateY(-50%) relative to the header so it does not disturb the centered layout",
-        "On the 'logout' event: POST to /.netlify/functions/auth-logout, clear ws_* localStorage keys, then redirect to /login using window.location.href",
-        "Profile menu is visible on all interview sub-screens (entry, rooms, waiting, interview, debrief)",
-        "On mobile viewports (<=600px), avatar uses right: 16px and dropdown stays within viewport bounds",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create src/lib/components/Toast.svelte that accepts message (string), duration (ms, default 5000), and type (info/success/warning) props",
+        "Toast appears in the bottom-right corner of the viewport with position: fixed",
+        "Toast auto-dismisses after the specified duration",
+        "Toast has a subtle slide-in animation on appear and fade-out on dismiss",
+        "Uses existing CSS variables (--ci-surface, --ci-text, --ci-border, --ci-accent) for theming",
+        "Typecheck passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "The interview page header uses .ws-header with centered text. The avatar must be absolutely positioned so it floats in the top-right without pushing the centered title. The header container needs position: relative if it doesn't already have it."
+      "notes": "This toast will be used for 'Welcome back', 'Partner is back online', and 'You've been moved' notifications in later stories. Keep it simple — no stacking or queue needed, just one toast at a time."
     },
     {
       "id": "US-004",
-      "title": "Add UserProfileMenu to dashboard page header",
-      "description": "As an instructor on the dashboard, I want to see my profile picture and be able to log out.",
+      "title": "Show partner disconnection banner on interview page",
+      "description": "As a student, I want to see a non-blocking banner when my partner disconnects so I know what's happening and can continue working.",
       "acceptanceCriteria": [
-        "UserProfileMenu is rendered in the top-right corner of the dashboard page header (.ws-header--wide)",
-        "User data is fetched from /.netlify/functions/auth-session on dashboard mount (dashboard has its own auth check)",
-        "Avatar is positioned the same way as on the interview page (absolute, right-aligned in header)",
-        "On the 'logout' event: POST to /.netlify/functions/auth-logout, clear sessionStorage dashboard auth, then redirect to /login",
-        "Profile menu does not break the existing dashboard header layout or the 'Copy Join Link' button",
-        "On mobile viewports, avatar uses right: 16px and dropdown stays within viewport bounds",
+        "When polling workshop-room detects partner's presence.online is false (or lastSeen > 30s), show a yellow/amber banner at the top of the interview area",
+        "Banner text: 'Your partner appears to be disconnected. You can continue working — they'll be able to rejoin.'",
+        "Banner does not block or freeze any UI — student can continue typing notes, navigating phases",
+        "Banner auto-dismisses when partner's presence flips back to online",
+        "Track partner's previous online state to detect transitions (offline→online and online→offline)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "The dashboard currently uses sessionStorage for its own password-based auth. Logout should clear both the session cookie (via auth-logout) and any sessionStorage keys used by the dashboard."
+      "notes": "The interview page already polls workshop-room. Use the presence data from that response. The banner should be a simple conditional element pinned below the header, not a modal or overlay."
+    },
+    {
+      "id": "US-005",
+      "title": "Show partner reconnection toast",
+      "description": "As a student, I want to see a brief toast when my disconnected partner comes back online.",
+      "acceptanceCriteria": [
+        "When partner transitions from offline to online (was offline, now online), show Toast with message: 'Your partner is back online!'",
+        "Toast uses the Toast component from US-003 with type 'success'",
+        "Toast auto-dismisses after 5 seconds",
+        "Toast does not show on initial page load (only on transition from offline→online)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Depends on US-003 (Toast component) and US-004 (presence tracking on interview page). The offline→online transition detection from US-004 can trigger this toast."
+    },
+    {
+      "id": "US-006",
+      "title": "Autosave on beforeunload and hydrate from server on reconnect",
+      "description": "As a student, I want my in-progress work automatically saved when I disconnect and restored from the server when I reconnect.",
+      "acceptanceCriteria": [
+        "On beforeunload event, use navigator.sendBeacon to POST current notes text to workshop-submit endpoint",
+        "The sendBeacon payload includes sessionId, roomId, studentName, round, and current notes text",
+        "On reconnect (page load with valid ws_* localStorage keys), the existing resume flow fetches room state from server",
+        "Server-side submission data takes priority over localStorage for notes content — client hydrates textarea from server data",
+        "If server has newer submission for current round, use it; otherwise fall back to localStorage",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "navigator.sendBeacon is fire-and-forget but more reliable than fetch during page teardown. The existing debounced save (1500ms) handles continuous typing; this covers the tab-close edge case. The resume flow already exists — this story enhances it to prefer server state."
+    },
+    {
+      "id": "US-007",
+      "title": "Show welcome-back toast on reconnection",
+      "description": "As a student who disconnected, I want to see a brief confirmation of where I am after reconnecting.",
+      "acceptanceCriteria": [
+        "After successful reconnection via the existing resume flow, show Toast: 'Welcome back! You're in Round [X] as [Interviewer/Storyteller].'",
+        "Toast uses the Toast component from US-003 with type 'info'",
+        "Toast auto-dismisses after 5 seconds",
+        "Only shows when resuming a session (rejoined: true from workshop-join), not on fresh joins",
+        "Current round, phase (notes/followup/profile), and role are correctly displayed in the toast",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "The resume flow already restores state. This story just adds the toast notification after successful resume. The role is determined by the existing determineRoles function."
+    },
+    {
+      "id": "US-008",
+      "title": "Add presence indicators to instructor dashboard",
+      "description": "As an instructor, I want to see green/red dots next to student names showing who is online or offline.",
+      "acceptanceCriteria": [
+        "Each student name in the dashboard room cards has a small colored dot (8-10px circle): green for online, red for offline",
+        "Offline students show a gray timestamp below their name: 'offline since [time]' (e.g., 'offline since 2:34 PM')",
+        "Presence data comes from the workshop-pulse response (added in US-002), updating on the existing 2s polling cycle",
+        "Students with no presence data (empty rooms, old rooms) show no dot",
+        "Presence indicators update reactively without full page refresh",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "The dashboard already polls workshop-pulse every 2s. This story consumes the presence data added in US-002 and renders it visually next to student names in the room cards."
+    },
+    {
+      "id": "US-009",
+      "title": "Create workshop-move-student API endpoint",
+      "description": "As a developer, I need a server endpoint that atomically moves a student from one room to another.",
+      "acceptanceCriteria": [
+        "Create netlify/functions/workshop-move-student.js that accepts POST with { sessionId, studentName, fromRoomId, toRoomId }",
+        "Removes the student from the source room (clears their student slot and email, resets their presence)",
+        "Adds the student to the target room's first available slot (student1 or student2)",
+        "If target room is full (both slots occupied), return 409 with error message",
+        "Sets a movedTo field on the source room's student slot so stale client writes to the old room are rejected",
+        "Sets a movedFrom field on the target room's student slot so the client can detect the move",
+        "Preserves the student's existing submissions in the source room (does not delete them)",
+        "Resets the target room's currentRound to match where both students should restart",
+        "Returns { success: true, newRoom: { ...targetRoomData } }",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Use read-modify-write on both room blobs. The movedTo/movedFrom fields are important for client-side detection. The target room's currentRound should be set to the moved student's currentRound so the round restarts fresh."
+    },
+    {
+      "id": "US-010",
+      "title": "Add Move Student button and dialog to instructor dashboard",
+      "description": "As an instructor, I want to move a stranded student to a different room when their partner has disconnected.",
+      "acceptanceCriteria": [
+        "A 'Move Student' button appears on room cards where one student is offline for more than 2 minutes and the other is online",
+        "Button is styled as a secondary/warning action using existing .ws-btn .ws-btn--secondary classes",
+        "Clicking the button opens a dialog listing available target rooms (rooms with 0 or 1 students)",
+        "Each target room option shows room number and current student name (if any)",
+        "Selecting a target room shows a confirmation: 'Move [StudentName] to Room [X]?'",
+        "On confirmation, POST to workshop-move-student endpoint with the correct parameters",
+        "On success, dashboard refreshes to reflect the move",
+        "On error (409 room full), show an error message",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "The 2-minute offline threshold should be computed from the presence lastSeen timestamp in the pulse data. Only show the button for the online student — moving the offline student is not supported."
+    },
+    {
+      "id": "US-011",
+      "title": "Detect room change on interview page client",
+      "description": "As a student who has been moved by the instructor, I want my interview page to detect the room change automatically.",
+      "acceptanceCriteria": [
+        "The interview page poll cycle checks for a movedTo field in the workshop-room response for the student's current room",
+        "Alternatively, check if the student's name is no longer in the current room's students object",
+        "On detecting a move, fetch the new room data using the movedTo roomId",
+        "Update localStorage ws_roomId to the new room ID",
+        "Clear any stale state from the previous room (notes, phase, partner name)",
+        "Transition to the partner change screen (US-012) instead of directly to the interview",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "The movedTo field is set by the workshop-move-student endpoint (US-009). Poll cycle already hits workshop-room — just need to check the response for move indicators."
+    },
+    {
+      "id": "US-012",
+      "title": "Partner change transition screen for moved student",
+      "description": "As a student who was moved to a new room, I want to see a transition screen explaining what happened before the round restarts.",
+      "acceptanceCriteria": [
+        "When a room change is detected (US-011), show a transition screen instead of jumping directly to the interview",
+        "Screen displays: 'You've been paired with a new partner! You'll be starting Round [X] together.'",
+        "Screen shows the new partner's name (fetched from the new room's students object)",
+        "A 'Ready' button lets the student acknowledge the change",
+        "Clicking 'Ready' writes a ready flag to the room blob via a new API call or by reusing workshop-heartbeat with a ready parameter",
+        "If both students have clicked Ready, or 10 seconds have elapsed, transition to the interview screen",
+        "The round starts fresh: empty notes textarea, roles re-determined by alphabetical sort of the new pair",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "This is the moved student's view. The existing student in the target room sees a similar screen (US-013). The ready flag can be stored in the room blob's presence or a new readyForRound field."
+    },
+    {
+      "id": "US-013",
+      "title": "Partner change transition screen for existing student",
+      "description": "As a student whose room just received a new partner, I want to see a transition screen so I'm not confused by a sudden partner change.",
+      "acceptanceCriteria": [
+        "When the interview page poll detects a new student in the room (partner name changed or movedFrom field present on new student), show a transition screen",
+        "Screen displays: 'A new partner has joined your room! You'll be restarting Round [X] together.'",
+        "Screen shows the new partner's name",
+        "A 'Ready' button lets the student acknowledge",
+        "Clicking 'Ready' writes a ready flag to the room blob",
+        "If both students have clicked Ready, or 10 seconds have elapsed, transition to the interview screen",
+        "The round restarts fresh: empty notes textarea, roles re-determined by alphabetical sort of the new pair",
+        "Any in-progress work from the interrupted round is preserved in submissions history (not deleted)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "This mirrors US-012 but from the existing student's perspective. The detection trigger is different: this student's room poll detects a new partner appearing, not a movedTo flag. Both students must click Ready (or wait 10s) before the round restarts."
     }
   ]
 }

@@ -26,41 +26,59 @@
 - Theme CSS vars: `--ci-accent`, `--ci-text`, `--ci-surface`, `--ci-border`, `--ci-focus-ring`
 - UserProfileMenu component: uses `onLogout` callback prop (not `createEventDispatcher`), accepts `name`/`email`/`picture`/`onLogout` props
 - Svelte 5 pattern: use callback props (`onLogout`) not `createEventDispatcher` — matches existing codebase convention
+- InterviewScreen has two poll paths: storytellerPoll (5s, round advancement) and presencePoll (5s, interviewer only) — both call `updatePartnerPresence(room)` to track partner status
+- Partner presence slot: match studentName against `room.students.student1`/`student2`, use the opposite slot's presence data
 - Position profile menu in headers with `.ws-header__profile` class: `position:absolute; right:24px; top:50%; transform:translateY(-50%)`
 
 ---
 
-## 2026-04-15 - US-001
-- Created `src/lib/components/UserProfileMenu.svelte` with avatar display (36px circle), fallback initial, dropdown with user info and Sign out button
-- Dropdown: right-aligned, closes on outside click and Escape, uses ws-card-style shadow/border
-- Files changed: `src/lib/components/UserProfileMenu.svelte` (new)
+## 2026-04-15 - US-002
+- Added presence normalization to `workshop-room.js` — old rooms without `presence` get default `{ student1: { online: false, lastSeen: null }, student2: ... }`
+- Added per-room `presence` object to `workshop-pulse.js` response with server-side computed `online` boolean based on 30s threshold
+- Files changed: `netlify/functions/workshop-room.js`, `netlify/functions/workshop-pulse.js`
 - **Learnings for future iterations:**
-  - Google profile images need `referrerpolicy="no-referrer"` to load correctly
-  - Use `svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions` for click-outside wrapper divs
-  - The component includes both US-001 (avatar) and US-002 (dropdown) functionality since they are tightly coupled in the same component
+  - Pulse endpoint computes `online` server-side using `Date.now() - new Date(lastSeen).getTime() <= 30000` — clients should use the boolean directly, not recompute
+  - The presence object in pulse has the same shape as in the room blob: `{ student1: { online, lastSeen }, student2: { online, lastSeen } }`
+  - Old rooms without presence field are normalized in both endpoints — no client-side null checks needed
 ---
 
-## 2026-04-15 - US-002
-- Dropdown menu already implemented as part of US-001 component
-- Refactored from `createEventDispatcher` to `onLogout` callback prop to match codebase convention
+## 2026-04-15 - US-001
+- Added `presence` field to `makeEmptyRoom` in `workshop-session.js` with `student1`/`student2` sub-objects (`online: false`, `lastSeen: null`)
+- Updated `workshop-heartbeat.js` to accept `studentName`, read the room blob, identify the student's slot, and write `online: true` + ISO `lastSeen` timestamp
+- Heartbeat gracefully initializes `presence` if missing on old rooms
+- Added `presence_timeout: 30000` to `WORKSHOP_CONFIG` in `src/lib/config.js`
+- Updated client heartbeat call in `+page.svelte` to send `studentName`
+- Files changed: `netlify/functions/workshop-session.js`, `netlify/functions/workshop-heartbeat.js`, `src/lib/config.js`, `src/routes/interview/+page.svelte`
+- **Learnings for future iterations:**
+  - The heartbeat previously only wrote to a separate `heartbeat:{sessionId}:{roomId}` blob — US-001 adds a read-modify-write on the room blob for presence, which introduces a potential race with join/leave. Keep heartbeat writes minimal.
+  - Student slot identification: `room.students.student1` and `room.students.student2` hold the student name strings directly
+  - The client heartbeat is in `startHeartbeat()` around line 72 of `+page.svelte` — it uses `$interviewState` for sessionId/roomId/studentName
 ---
 
 ## 2026-04-15 - US-003
-- Added UserProfileMenu to interview page header with absolute positioning
-- Logout handler: POST to auth-logout, clear all ws_* localStorage keys, redirect to /login
-- Files changed: `src/routes/interview/+page.svelte`, `src/lib/components/UserProfileMenu.svelte`
+- Created `src/lib/components/Toast.svelte` — reusable toast notification component
+- Accepts `message` (string), `duration` (ms, default 5000), `type` ('info'/'success'/'warning'), and `visible` ($bindable boolean) props
+- Fixed position bottom-right, slide-in animation on appear, fade-out on dismiss
+- Uses CSS variables for theming with dark mode support via `:global(.dark)` selectors
+- Auto-dismisses after specified duration
+- Files changed: `src/lib/components/Toast.svelte`
 - **Learnings for future iterations:**
-  - Headers need `position:relative` for absolute-positioned children (add inline `style="position:relative;"`)
-  - Use `.ws-header__profile` class for consistent profile menu positioning across pages
-  - Mobile breakpoint at 600px: switch from `right:24px` to `right:16px`
+  - Toast uses `$bindable(visible)` so parent can two-way bind: `<Toast bind:visible={showToast} message="..." />`
+  - To show a toast: set the bound `visible` to `true`; it auto-resets to `false` on dismiss
+  - Dark mode overrides for non-themed colors (success green, warning amber) use `:global(.dark) .ws-toast--type` pattern
 ---
 
 ## 2026-04-15 - US-004
-- Added UserProfileMenu to dashboard page header
-- Dashboard fetches user data from `/.netlify/functions/auth-session` on mount (no server-side load)
-- Logout clears both session cookie (via auth-logout) and sessionStorage dashboard keys
-- Files changed: `src/routes/dashboard/+page.svelte`
+- Added partner presence tracking to InterviewScreen with `partnerOnline`/`partnerPreviousOnline` state
+- Added `updatePartnerPresence()` helper that identifies partner's slot and computes online status from lastSeen + 30s threshold
+- Interviewer gets a dedicated `presencePollInterval` (5s); storyteller piggybacks on existing `storytellerPollInterval`
+- Yellow/amber disconnection banner shown between round header and prompt card when partner is offline
+- Banner auto-dismisses when partner comes back online (reactive via `partnerOnline` state)
+- `partnerPreviousOnline` starts as `null` to prevent banner on initial page load
+- Added `.ws-partner-disconnected-banner` styles to `styles.css` with dark mode support
+- Files changed: `src/lib/components/interview/InterviewScreen.svelte`, `styles.css`
 - **Learnings for future iterations:**
-  - Dashboard uses client-side auth (sessionStorage `ws_dash_auth`) unlike interview page (server-side JWT)
-  - `auth-session` returns `{ authenticated: true, user: { name, email, picture } }` — check `res.ok` before parsing
+  - InterviewScreen has two poll paths: storyteller poll (round advancement) and interviewer presence poll — both now update partner presence
+  - Partner slot identification: match `$interviewState.studentName` against `room.students.student1`/`student2`, then use the other slot's presence
+  - The `partnerPreviousOnline = null` pattern prevents showing banners/toasts on initial load — use it for US-005 transition detection
 ---
