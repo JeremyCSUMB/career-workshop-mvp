@@ -1103,6 +1103,56 @@ body {
   background: var(--ci-accent-light);
 }
 
+/* Move Student Modal */
+.ws-move-room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.ws-move-room-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid var(--ci-border);
+  border-radius: var(--ci-radius);
+  background: var(--ci-surface);
+  cursor: pointer;
+  font: inherit;
+  color: var(--ci-text);
+  text-align: left;
+  transition: border-color var(--ci-duration) var(--ci-transition),
+              background var(--ci-duration) var(--ci-transition);
+}
+
+.ws-move-room-option:hover {
+  border-color: var(--ci-accent);
+  background: var(--ci-accent-light);
+}
+
+.ws-move-room-option__id {
+  font-weight: 600;
+}
+
+.ws-move-room-option__student {
+  color: var(--ci-text-muted);
+  font-size: 0.9em;
+}
+
+.ws-move-error {
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: var(--ci-radius);
+  background: var(--ci-error-bg);
+  border: 1px solid var(--ci-error-border);
+  color: var(--ci-error-border);
+  font-size: 0.9em;
+}
+
 .ws-modal__footer {
   display: flex;
   justify-content: flex-end;

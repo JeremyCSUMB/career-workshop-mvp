@@ -1,5 +1,5 @@
 <script>
-	let { room, totalRounds = 0, onNudge } = $props();
+	let { room, totalRounds = 0, onNudge, onMoveStudent } = $props();
 
 	let roomId = $derived(room.id || '?');
 	let studentNames = $derived(room._studentNames || []);
@@ -96,6 +96,23 @@
 	import { onMount, onDestroy } from 'svelte';
 	onMount(() => { tickInterval = setInterval(() => { tick++; }, 1000); });
 	onDestroy(() => { if (tickInterval) clearInterval(tickInterval); });
+
+	// Move student eligibility: one student online, the other offline >2 minutes
+	let moveEligibleStudent = $derived.by(() => {
+		tick; // re-evaluate each second
+		if (!presence || studentNames.length < 2) return null;
+		const p1 = getPresenceForStudent(studentNames[0]);
+		const p2 = getPresenceForStudent(studentNames[1]);
+		if (!p1 || !p2) return null;
+		const TWO_MIN = 2 * 60 * 1000;
+		const now = Date.now();
+		const s1Offline = !p1.online && p1.lastSeen && (now - new Date(p1.lastSeen).getTime() > TWO_MIN);
+		const s2Offline = !p2.online && p2.lastSeen && (now - new Date(p2.lastSeen).getTime() > TWO_MIN);
+		// Show button for the online student when partner is offline >2min
+		if (s1Offline && p2.online) return studentNames[1];
+		if (s2Offline && p1.online) return studentNames[0];
+		return null;
+	});
 
 	// Force re-derive on tick
 	let relTime = $derived.by(() => { tick; return relativeTime(lastInput); });
@@ -217,5 +234,8 @@
 	{/if}
 	<div class="ws-room-card__actions">
 		<button class="ws-btn ws-btn--small ws-btn--secondary" onclick={() => onNudge(roomId)}>Send Nudge</button>
+		{#if moveEligibleStudent}
+			<button class="ws-btn ws-btn--small ws-btn--secondary" onclick={() => onMoveStudent(roomId, moveEligibleStudent)}>Move Student</button>
+		{/if}
 	</div>
 </div>

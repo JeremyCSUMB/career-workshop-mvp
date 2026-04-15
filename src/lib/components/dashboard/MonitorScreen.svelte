@@ -5,6 +5,7 @@
 	import OverviewBar from './OverviewBar.svelte';
 	import RoomCard from './RoomCard.svelte';
 	import NudgeModal from './NudgeModal.svelte';
+	import MoveStudentModal from './MoveStudentModal.svelte';
 
 	let { sessionId, onBackToSessions, onProjector } = $props();
 
@@ -19,6 +20,11 @@
 	let nudgeVisible = $state(false);
 	let nudgeRoomId = $state('');
 	let nudgeSuggested = $state('');
+
+	// Move student modal state
+	let moveVisible = $state(false);
+	let moveStudentName = $state('');
+	let moveFromRoomId = $state('');
 
 	// Polling intervals
 	let pulseInterval;
@@ -261,6 +267,24 @@
 		nudgeRoomId = '';
 	}
 
+	// Move student handling
+	function openMoveStudent(roomId, studentName) {
+		moveFromRoomId = roomId;
+		moveStudentName = studentName;
+		moveVisible = true;
+	}
+
+	function closeMoveStudent() {
+		moveVisible = false;
+		moveStudentName = '';
+		moveFromRoomId = '';
+	}
+
+	function handleMoveSuccess() {
+		closeMoveStudent();
+		fullRefreshRooms();
+	}
+
 	function handleBack() {
 		stopMonitoring();
 		onBackToSessions();
@@ -360,7 +384,7 @@
 
 <div class="ws-room-grid">
 	{#each sortedRooms as room (room.id)}
-		<RoomCard {room} {totalRounds} onNudge={openNudge} />
+		<RoomCard {room} {totalRounds} onNudge={openNudge} onMoveStudent={openMoveStudent} />
 	{/each}
 </div>
 
@@ -370,4 +394,14 @@
 	{sessionId}
 	suggestedNudge={nudgeSuggested}
 	onClose={closeNudge}
+/>
+
+<MoveStudentModal
+	visible={moveVisible}
+	{sessionId}
+	studentName={moveStudentName}
+	fromRoomId={moveFromRoomId}
+	{rooms}
+	onClose={closeMoveStudent}
+	onSuccess={handleMoveSuccess}
 />
