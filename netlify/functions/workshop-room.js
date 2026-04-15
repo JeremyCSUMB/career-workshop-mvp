@@ -53,6 +53,15 @@ exports.handler = async (event) => {
       room.capabilityProfiles = room.capabilityProfile ? [room.capabilityProfile] : [];
     }
 
+    // Normalize presence for old rooms
+    const defaultPresence = { online: false, lastSeen: null };
+    if (!room.presence) {
+      room.presence = { student1: { ...defaultPresence }, student2: { ...defaultPresence } };
+    } else {
+      if (!room.presence.student1) room.presence.student1 = { ...defaultPresence };
+      if (!room.presence.student2) room.presence.student2 = { ...defaultPresence };
+    }
+
     // Look up user profiles for authenticated students
     if (room.studentEmails) {
       room.authenticatedStudents = {};

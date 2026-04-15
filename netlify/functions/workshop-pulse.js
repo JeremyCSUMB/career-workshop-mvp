@@ -53,6 +53,8 @@ exports.handler = async (event) => {
       })
     );
     const rooms = [];
+    const now = Date.now();
+    const PRESENCE_TIMEOUT = 30000;
 
     for (const { room: data, heartbeat: hbData } of allData) {
       if (!data) continue;
@@ -64,6 +66,19 @@ exports.handler = async (event) => {
       const latestSubmissionTime = submissions.length > 0
         ? submissions[submissions.length - 1].timestamp
         : null;
+
+      // Compute presence with online boolean based on 30s threshold
+      const rawPresence = data.presence || {};
+      const computeOnline = (slot) => {
+        const p = rawPresence[slot];
+        if (!p || !p.lastSeen) return { online: false, lastSeen: null };
+        const elapsed = now - new Date(p.lastSeen).getTime();
+        return { online: elapsed <= PRESENCE_TIMEOUT, lastSeen: p.lastSeen };
+      };
+      const presence = {
+        student1: computeOnline('student1'),
+        student2: computeOnline('student2'),
+      };
 
       rooms.push({
         id: data.id,
@@ -80,6 +95,7 @@ exports.handler = async (event) => {
         latestStatus: (data.classifications || []).length > 0
           ? (data.classifications[data.classifications.length - 1].status || '').toLowerCase()
           : '',
+        presence,
       });
     }
 
