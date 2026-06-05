@@ -5,8 +5,10 @@
  *     Results are cached in Blobs so the AI call only runs once per session.
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
 const { callClaude } = require('./lib/anthropic');
+const { getStudentNames, normalizeRoom, normalizeRoomSize } = require('./lib/rooms');
+const { requireDashboardAuth } = require('./lib/dashboard-auth');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -40,15 +42,8 @@ function computeMetrics(session, rooms) {
 
   const roomStats = rooms.map((room) => {
     // Collect student names
-    const students = [];
-    if (room.students) {
-      Object.values(room.students).forEach((name) => {
-        if (name) {
-          studentNames.add(name);
-          students.push(name);
-        }
-      });
-    }
+    const students = getStudentNames(room.students, room.roomSize);
+    students.forEach((name) => studentNames.add(name));
 
     const submissions = room.submissions || [];
     const wordCount = submissions.reduce((sum, s) => sum + (s.wordCount || 0), 0);
@@ -104,6 +99,7 @@ function computeMetrics(session, rooms) {
       endedAt: session.endedAt,
       durationMinutes,
       roomCount: session.roomCount,
+      roomSize: normalizeRoomSize(session.roomSize),
       studentCount: studentNames.size,
       totalRounds: session.rounds || 1,
       totalQuestions: session.questions || 1,
@@ -178,6 +174,9 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
+  const authError = requireDashboardAuth(event);
+  if (authError) return authError;
+
   if (event.httpMethod !== 'GET') {
     return json(405, { error: 'Method not allowed' });
   }
@@ -187,7 +186,7 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required query parameter: sessionId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Check cache first
@@ -206,7 +205,7 @@ exports.handler = async (event) => {
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
     const rooms = (await Promise.all(
       blobs.map((blob) => store.get(blob.key, { type: 'json' }))
-    )).filter(Boolean);
+    )).filter(Boolean).map((room) => normalizeRoom(room, session));
 
     // Compute quantitative metrics
     const computed = computeMetrics(session, rooms);

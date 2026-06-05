@@ -41,7 +41,7 @@ exports.handler = async (event) => {
     prompt: 'select_account',
   });
 
-  if (redirectParam) {
+  if (redirectParam && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
     params.set('state', redirectParam);
   }
 

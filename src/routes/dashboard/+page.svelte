@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { fade, fly } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import LoginScreen from '$lib/components/dashboard/LoginScreen.svelte';
 	import SessionScreen from '$lib/components/dashboard/SessionScreen.svelte';
 	import MonitorScreen from '$lib/components/dashboard/MonitorScreen.svelte';
@@ -120,6 +120,9 @@
 
 	async function handleProfileLogout() {
 		try {
+			await fetch('/.netlify/functions/auth-dashboard-logout', { method: 'POST' });
+		} catch {}
+		try {
 			await fetch('/.netlify/functions/auth-logout', { method: 'POST' });
 		} catch {}
 		if (browser) {
@@ -138,18 +141,26 @@
 				if (data.user) user = data.user;
 			}
 		} catch {}
-		const wasAuth = sessionStorage.getItem('ws_dash_auth') === 'true';
+		let wasAuth = false;
+		try {
+			const res = await fetch('/.netlify/functions/auth-dashboard-session');
+			wasAuth = res.ok;
+		} catch {}
 		const savedSession = sessionStorage.getItem('ws_dash_sessionId');
 
 		if (wasAuth && savedSession) {
+			sessionStorage.setItem('ws_dash_auth', 'true');
 			sessionId = savedSession;
 			subtitle = `Session: ${savedSession}`;
 			screen = 'dashboard';
 		} else if (wasAuth) {
+			sessionStorage.setItem('ws_dash_auth', 'true');
 			screen = 'session';
 			if (!localStorage.getItem('ws_guide_completed')) {
 				showWelcomeBanner = true;
 			}
+		} else {
+			sessionStorage.removeItem('ws_dash_auth');
 		}
 	});
 </script>
@@ -184,21 +195,17 @@
 		</div>
 	{/if}
 
-	{#key screen}
-		<div in:fly={{ y: 4, duration: 250 }} out:fade={{ duration: 150 }}>
-			{#if screen === 'login'}
-				<LoginScreen onLogin={handleLogin} />
-			{:else if screen === 'session'}
-				<SessionScreen onMonitor={handleMonitor} onAnalytics={handleAnalytics} onProjector={handleProjector} />
-			{:else if screen === 'dashboard'}
-				<MonitorScreen {sessionId} onBackToSessions={handleBackToSessions} onProjector={handleProjector} />
-			{:else if screen === 'analytics'}
-				<AnalyticsScreen sessionId={analyticsSessionId} sessionName={analyticsSessionName} onBack={handleBackToSessions} />
-			{:else if screen === 'guide'}
-				<GuideScreen onComplete={handleGuideComplete} />
-			{/if}
-		</div>
-	{/key}
+	{#if screen === 'login'}
+		<LoginScreen onLogin={handleLogin} />
+	{:else if screen === 'session'}
+		<SessionScreen onMonitor={handleMonitor} onAnalytics={handleAnalytics} onProjector={handleProjector} />
+	{:else if screen === 'dashboard'}
+		<MonitorScreen {sessionId} onBackToSessions={handleBackToSessions} onProjector={handleProjector} />
+	{:else if screen === 'analytics'}
+		<AnalyticsScreen sessionId={analyticsSessionId} sessionName={analyticsSessionName} onBack={handleBackToSessions} />
+	{:else if screen === 'guide'}
+		<GuideScreen onComplete={handleGuideComplete} />
+	{/if}
 </main>
 
 {#if projectorSessionId}

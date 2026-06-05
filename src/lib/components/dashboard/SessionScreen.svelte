@@ -9,6 +9,7 @@
 
 	let sessionName = $state('');
 	let roomCount = $state('');
+	let roomSize = $state(2);
 	let questionCount = $state(1);
 	let prompts = $state([DEFAULT_PROMPT]);
 	let createError = $state('');
@@ -32,6 +33,7 @@
 	async function handleCreate() {
 		const name = sessionName.trim();
 		const rooms = parseInt(roomCount, 10);
+		const size = Number(roomSize) === 3 ? 3 : 2;
 		const questions = Math.max(1, Math.min(10, questionCount || 1));
 		createError = '';
 
@@ -43,7 +45,7 @@
 
 		try {
 			const data = await api('workshop-session', {
-				body: { name, roomCount: rooms, rounds: questions * 2, questions, prompts: finalPrompts }
+				body: { name, roomCount: rooms, roomSize: size, rounds: questions * size, questions, prompts: finalPrompts }
 			});
 			const id = data.session?.id || data.sessionId || data.id;
 			onMonitor(id);
@@ -96,12 +98,19 @@
 			<input id="new-room-count" class="ws-input" type="number" min="1" max="50" placeholder="e.g. 12" bind:value={roomCount} />
 		</div>
 		<div class="ws-field">
-			<label class="ws-label" for="new-round-count">Number of Questions</label>
-			<input id="new-round-count" class="ws-input" type="number" min="1" max="10" bind:value={questionCount} />
-			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question is a full cycle &mdash; both partners take turns interviewing and sharing.</div>
+			<label class="ws-label" for="new-room-size">Room Mode</label>
+			<select id="new-room-size" class="ws-input" bind:value={roomSize}>
+				<option value={2}>Pairs (2 students)</option>
+				<option value={3}>Triads (3 students)</option>
+			</select>
 		</div>
 		<div class="ws-field">
-			<label class="ws-label">Question Prompts</label>
+			<label class="ws-label" for="new-round-count">Number of Questions</label>
+			<input id="new-round-count" class="ws-input" type="number" min="1" max="10" bind:value={questionCount} />
+			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:4px;">Each question is a full cycle &mdash; every student gets one turn in the selected room mode.</div>
+		</div>
+		<fieldset class="ws-field" style="border:0;padding:0;margin:0;">
+			<legend class="ws-label">Question Prompts</legend>
 			<div class="ws-prompt-list">
 				{#each prompts as prompt, idx}
 					<div class="ws-prompt-editor">
@@ -121,7 +130,7 @@
 				{/each}
 			</div>
 			<div style="font-size:12px;color:var(--ci-text-muted);margin-top:8px;">Each question shows the same prompt for both turns. Edit any prompt or leave as default.</div>
-		</div>
+		</fieldset>
 		{#if createError}
 			<div class="ws-error">{createError}</div>
 		{/if}

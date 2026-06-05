@@ -4,7 +4,8 @@
  * POST: Interviewer submits notes for a round
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { normalizeRoom, rolesForRound } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -36,12 +37,12 @@ exports.handler = async (event) => {
     return json(400, { error: 'Invalid JSON in request body' });
   }
 
-  const { sessionId, roomId, studentName, aboutStudent, notes, round } = body;
+  const { sessionId, roomId, studentName, aboutStudent, notes, round, role } = body;
   if (!sessionId || !roomId || !studentName || !notes || !round) {
     return json(400, { error: 'Missing required fields: sessionId, roomId, studentName, notes, round' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Check if session has ended
@@ -53,7 +54,7 @@ exports.handler = async (event) => {
       return json(403, { error: 'This session has ended' });
     }
 
-    const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+    const room = normalizeRoom(await store.get(`room:${sessionId}:${roomId}`, { type: 'json' }), session);
     if (!room) {
       return json(404, { error: 'Room not found' });
     }
@@ -61,10 +62,13 @@ exports.handler = async (event) => {
     const now = new Date().toISOString();
     const wordCount = notes.trim().split(/\s+/).filter(Boolean).length;
 
+    const roundNum = Number(String(round).match(/^round(\d+)/)?.[1] || room.currentRound || 1);
+    const roundRoles = rolesForRound(room.students, roundNum, room.roomSize);
     const submission = {
       studentName,
       aboutStudent: aboutStudent || null,
-      role: 'interviewer',
+      role: role || (room.roomSize === 3 ? 'note-taker' : 'interviewer'),
+      asker: roundRoles?.asker || null,
       notes,
       wordCount,
       timestamp: now,

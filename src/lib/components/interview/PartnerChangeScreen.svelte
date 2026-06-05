@@ -2,6 +2,7 @@
 	import { api } from '$lib/api.js';
 	import { WORKSHOP_CONFIG as CFG } from '$lib/config.js';
 	import { interviewState } from '$lib/stores/interview.js';
+	import { findStudentSlot } from '$lib/rooms.js';
 	import { onDestroy } from 'svelte';
 
 	let { onReady, variant = 'moved' } = $props();
@@ -18,7 +19,7 @@
 	let studentName = $derived($interviewState.studentName);
 	let partnerName = $derived(() => {
 		const names = students.filter((n) => n !== studentName);
-		return names.length > 0 ? names[0] : '';
+		return names.join(', ');
 	});
 
 	// Auto-transition after 10 seconds regardless of ready state
@@ -57,14 +58,9 @@
 				const room = data.room || data;
 				const presence = room.presence || {};
 
-				// Find partner's slot
-				let partnerSlot = null;
-				if (room.students) {
-					if (room.students.student1 === studentName) partnerSlot = 'student2';
-					else if (room.students.student2 === studentName) partnerSlot = 'student1';
-				}
-
-				if (partnerSlot && presence[partnerSlot] && presence[partnerSlot].readyForRound === round) {
+				const mySlot = findStudentSlot(room.students, studentName, room.roomSize || $interviewState.roomSize || 2);
+				const otherSlots = Object.keys(room.students || {}).filter((slot) => slot !== mySlot && room.students[slot]);
+				if (otherSlots.length > 0 && otherSlots.every((slot) => presence[slot]?.readyForRound === round)) {
 					partnerReady = true;
 					if (myReady) {
 						transition();

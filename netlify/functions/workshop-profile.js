@@ -4,8 +4,9 @@
  * POST: Generate a capability profile from interview notes
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
 const { callClaude } = require('./lib/anthropic');
+const { normalizeRoom } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -44,7 +45,7 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required fields: sessionId, roomId, studentName, round' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Check if session has ended
@@ -56,7 +57,7 @@ exports.handler = async (event) => {
       return json(403, { error: 'This session has ended' });
     }
 
-    const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+    const room = normalizeRoom(await store.get(`room:${sessionId}:${roomId}`, { type: 'json' }), session);
     if (!room) {
       return json(404, { error: 'Room not found' });
     }

@@ -4,7 +4,8 @@
  * POST: Remove a student from a room so they can pick a different one
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { findStudentSlot, normalizeRoom } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -41,22 +42,23 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required fields: sessionId, roomId, studentName' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
-    const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+    const session = await store.get(`session:${sessionId}`, { type: 'json' }).catch(() => null);
+    const room = normalizeRoom(await store.get(`room:${sessionId}:${roomId}`, { type: 'json' }), session || {});
     if (!room) {
       return json(404, { error: 'Room not found' });
     }
 
     // Remove student from their slot
-    if (room.students.student1 === studentName) {
-      room.students.student1 = null;
-    } else if (room.students.student2 === studentName) {
-      room.students.student2 = null;
-    } else {
+    const slot = findStudentSlot(room.students, studentName, room.roomSize);
+    if (!slot) {
       return json(404, { error: 'Student not found in this room' });
     }
+    room.students[slot] = null;
+    if (room.presence?.[slot]) room.presence[slot] = { online: false, lastSeen: null };
+    if (room.studentEmails?.[slot]) room.studentEmails[slot] = null;
 
     await store.setJSON(`room:${sessionId}:${roomId}`, room);
     return json(200, { ok: true });

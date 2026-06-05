@@ -30,7 +30,7 @@
 <svelte:window on:keydown={handleKeydown} on:click={handleClickOutside} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="upm" onclick={(e) => e.stopPropagation()}>
+<div class="upm" role="presentation" onclick={(e) => e.stopPropagation()}>
 	<button class="upm__avatar-btn" onclick={toggle} aria-label="Profile menu" aria-expanded={open}>
 		{#if picture}
 			<img

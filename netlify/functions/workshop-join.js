@@ -4,9 +4,10 @@
  * POST: Student joins a room (as student1 or student2)
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
 const { verifyJwt } = require('./lib/jwt');
 const { parseCookies } = require('./lib/cookies');
+const { findStudentSlot, firstOpenSlot, getRoomSlots, normalizeRoom, normalizeRoomSize } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -42,10 +43,6 @@ exports.handler = async (event) => {
   if (!sessionId || !roomId || !studentName) {
     return json(400, { error: 'Missing required fields: sessionId, roomId, studentName' });
   }
-  if (claimSlot && claimSlot !== 'student1' && claimSlot !== 'student2') {
-    return json(400, { error: 'claimSlot must be "student1" or "student2"' });
-  }
-
   // Extract email from session cookie if authenticated
   let userEmail = null;
   try {
@@ -58,7 +55,7 @@ exports.handler = async (event) => {
     // Not authenticated or invalid token — proceed without email
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Check if session exists
@@ -66,30 +63,27 @@ exports.handler = async (event) => {
     if (!session) {
       return json(404, { error: 'Session not found' });
     }
+    const roomSize = normalizeRoomSize(session.roomSize);
+    const slots = getRoomSlots(roomSize);
+    if (claimSlot && !slots.includes(claimSlot)) {
+      return json(400, { error: `claimSlot must be one of: ${slots.join(', ')}` });
+    }
 
     // Try to join with a verify-after-write to guard against concurrent
     // writes (e.g. another join or nudge POST) clobbering our update.
     async function tryJoin() {
-      const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+      const room = normalizeRoom(await store.get(`room:${sessionId}:${roomId}`, { type: 'json' }), session);
       if (!room) {
         return json(404, { error: 'Room not found' });
       }
 
-      // Ensure studentEmails object exists (old rooms may lack it)
-      if (!room.studentEmails) {
-        room.studentEmails = {};
-      }
-
       // Allow rejoin if student is already in the room
-      const alreadyIn =
-        room.students.student1 === studentName ||
-        room.students.student2 === studentName;
+      const existingSlot = findStudentSlot(room.students, studentName, room.roomSize);
 
-      if (alreadyIn) {
+      if (existingSlot) {
         // Update email on rejoin if authenticated
         if (userEmail) {
-          const slot = room.students.student1 === studentName ? 'student1' : 'student2';
-          room.studentEmails[slot] = userEmail;
+          room.studentEmails[existingSlot] = userEmail;
           await store.setJSON(`room:${sessionId}:${roomId}`, room);
         }
         return json(200, { room, rejoined: true });
@@ -101,14 +95,11 @@ exports.handler = async (event) => {
         return json(403, { error: 'This session has ended' });
       }
 
-      // Assign to first available slot
       let assignedSlot = null;
-      if (!room.students.student1) {
-        room.students.student1 = studentName;
-        assignedSlot = 'student1';
-      } else if (!room.students.student2) {
-        room.students.student2 = studentName;
-        assignedSlot = 'student2';
+      const openSlot = firstOpenSlot(room.students, room.roomSize);
+      if (openSlot) {
+        assignedSlot = openSlot;
+        room.students[assignedSlot] = studentName;
       } else if (claimSlot) {
         // Claim an existing slot (student lost their name / different device)
         room.students[claimSlot] = studentName;
@@ -126,9 +117,7 @@ exports.handler = async (event) => {
 
       // Verify our write was not clobbered by a concurrent operation
       const verified = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
-      const present =
-        verified.students.student1 === studentName ||
-        verified.students.student2 === studentName;
+      const present = !!findStudentSlot(verified?.students, studentName, room.roomSize);
 
       if (!present) {
         return null; // signal retry

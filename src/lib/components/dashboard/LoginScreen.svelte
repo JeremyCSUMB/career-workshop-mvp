@@ -1,17 +1,22 @@
 <script>
-	import { WORKSHOP_CONFIG as CFG } from '$lib/config.js';
+	import { api } from '$lib/api.js';
 
 	let { onLogin } = $props();
 
 	let password = $state('');
 	let error = $state('');
+	let loading = $state(false);
 
-	function handleLogin() {
-		if (password === CFG.dashboard_password) {
+	async function handleLogin() {
+		loading = true;
+		try {
+			await api('auth-dashboard-login', { body: { password } });
 			error = '';
 			onLogin();
-		} else {
+		} catch {
 			error = 'Incorrect password.';
+		} finally {
+			loading = false;
 		}
 	}
 
@@ -37,6 +42,6 @@
 		<div class="ws-error">{error}</div>
 	{/if}
 	<div class="ws-btn-row">
-		<button class="ws-btn" onclick={handleLogin}>Log In</button>
+		<button class="ws-btn" onclick={handleLogin} disabled={loading}>{loading ? 'Logging in...' : 'Log In'}</button>
 	</div>
 </div>

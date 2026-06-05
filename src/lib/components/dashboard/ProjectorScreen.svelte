@@ -24,7 +24,7 @@
 			const rooms = data.rooms || [];
 			roomCount = rooms.length;
 			studentCount = rooms.reduce((sum, r) => sum + (r.studentCount || 0), 0);
-			filledRooms = rooms.filter(r => (r.studentCount || 0) >= 2).length;
+			filledRooms = rooms.filter(r => (r.studentCount || 0) >= (r.roomSize || data.roomSize || 2)).length;
 		} catch {}
 	}
 

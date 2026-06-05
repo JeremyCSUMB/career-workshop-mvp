@@ -84,7 +84,7 @@
 		if (hasFollowupSub) return 'profile';
 		// AI follow-up questions are generated only after formal notes submission
 		const followups = room.aiFollowUps || [];
-		if (followups.length >= currentRound) return 'follow-up';
+		if (followups.some((f) => Number(f.round || 0) === currentRound) || followups.length >= currentRound) return 'follow-up';
 		const hasNotes = subs.some(s => (s.round || '') === `${roundPrefix}-notes`);
 		if (hasNotes) return 'notes';
 		return 'waiting';
@@ -137,7 +137,8 @@
 					lastInputTime: room.lastInputTime || null,
 					lastHeartbeat: room.lastHeartbeat || null,
 					currentRound: room.currentRound || 1,
-					roundStartTime: room.roundStartTime || null
+					roundStartTime: room.roundStartTime || null,
+					roomSize: room.roomSize || 2
 				};
 			});
 
@@ -161,7 +162,8 @@
 					|| prev.submissionCount !== p.submissionCount
 					|| prev.studentCount !== p.studentCount
 					|| prev.wordCount !== p.wordCount
-					|| prev.currentRound !== p.currentRound;
+					|| prev.currentRound !== p.currentRound
+					|| prev.roomSize !== p.roomSize;
 
 				if (changed) {
 					changedRoomIds.push(p.id);
@@ -181,6 +183,7 @@
 					if (p.currentRound) rooms[idx].currentRound = p.currentRound;
 					if (p.presence) rooms[idx]._presence = p.presence;
 					if (p.students) rooms[idx]._students = p.students;
+					if (p.roomSize) rooms[idx].roomSize = p.roomSize;
 				}
 			}
 			rooms = rooms; // trigger reactivity

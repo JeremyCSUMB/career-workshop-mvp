@@ -6,6 +6,7 @@
 	import Toast from '$lib/components/Toast.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
+	import { findStudentSlot, questionForRound, rolesForRound, turnForRound } from '$lib/rooms.js';
 
 	let { onComplete, onChangeRoom, onMoved = null, onNewPartner = null, resumeRoomData = null, rejoined = false } = $props();
 
@@ -22,24 +23,63 @@
 	// Derived state
 	let round = $derived($interviewState.round);
 	let totalRounds = $derived($interviewState.totalRounds);
-	let currentQuestion = $derived(Math.ceil(round / 2));
-	let totalQuestions = $derived(Math.ceil(totalRounds / 2));
-	let questionTurn = $derived(((round - 1) % 2) + 1);
+	let roomSize = $derived($interviewState.roomSize || 2);
+	let currentQuestion = $derived(questionForRound(round, roomSize));
+	let totalQuestions = $derived(questionForRound(totalRounds, roomSize));
+	let questionTurn = $derived(turnForRound(round, roomSize));
 	let promptText = $derived(() => {
-		const idx = Math.floor((round - 1) / 2);
+		const idx = Math.floor((round - 1) / roomSize);
 		return $interviewState.prompts[idx] || 'Tell your partner about a time you had to figure something out where there wasn\'t a clear answer. Any context — work, school, personal. Don\'t pick the most impressive story. Pick what comes to mind first. 3-4 minutes.';
 	});
 
 	// Role determination
 	let students = $derived($interviewState.students);
 	let role = $derived($interviewState.role);
+	let roles = $derived($interviewState.roles || rolesForRound(students, round, roomSize));
 	let partnerName = $derived($interviewState.partnerName);
 	let roomId = $derived($interviewState.roomId);
+	let isPairRoom = $derived(roomSize === 2);
+	let isNoteTaker = $derived(role === 'interviewer' || role === 'note-taker');
+	let isAsker = $derived(role === 'interviewer' || role === 'asker');
+	let isAnswerer = $derived(role === 'storyteller' || role === 'answerer');
+	let answererName = $derived(roles?.answerer || partnerName);
+	let askerName = $derived(roles?.asker || '');
+	let noteTakerName = $derived(roles?.noteTaker || '');
+
+	function draftKey(field, draftRound = round) {
+		const sid = $interviewState.sessionId || 'unknown-session';
+		const rid = roomId || 'unknown-room';
+		const name = ($interviewState.studentName || 'unknown-student').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+		return `ws_draft_${sid}_${rid}_${name}_round${draftRound}_${field}`;
+	}
+
+	function draftMetaKey(field, draftRound = round) {
+		return `${draftKey(field, draftRound)}_savedAt`;
+	}
+
+	function loadDraft(field) {
+		if (!browser) return '';
+		const scoped = localStorage.getItem(draftKey(field));
+		if (scoped !== null) return scoped;
+		const legacyKey = field === 'notes' ? 'ws_notesText' : 'ws_followupText';
+		return localStorage.getItem(legacyKey) || '';
+	}
+
+	function clearDraftsForRound(doneRound = round) {
+		if (!browser) return;
+		localStorage.removeItem(draftKey('notes', doneRound));
+		localStorage.removeItem(draftKey('followup', doneRound));
+		localStorage.removeItem(draftKey('phase', doneRound));
+		localStorage.removeItem(draftMetaKey('notes', doneRound));
+		localStorage.removeItem(draftMetaKey('followup', doneRound));
+		localStorage.removeItem('ws_notesText');
+		localStorage.removeItem('ws_followupText');
+	}
 
 	// Interview phases: 'notes' | 'followup' | 'profile'
-	let phase = $state(browser ? (localStorage.getItem('ws_interviewPhase') || 'notes') : 'notes');
-	let notesText = $state(browser ? (localStorage.getItem('ws_notesText') || '') : '');
-	let followupText = $state(browser ? (localStorage.getItem('ws_followupText') || '') : '');
+	let phase = $state(browser ? (localStorage.getItem(draftKey('phase')) || localStorage.getItem('ws_interviewPhase') || 'notes') : 'notes');
+	let notesText = $state(loadDraft('notes'));
+	let followupText = $state(loadDraft('followup'));
 	let followupQuestions = $state([]);
 	let profileData = $state(null);
 	let customTags = $state([]);
@@ -69,34 +109,56 @@
 	let followupRemaining = $derived(MIN_CHARS - followupChars);
 
 	// Round header
-	let headerTitle = $derived(`Question ${currentQuestion} of ${totalQuestions} · Turn ${questionTurn} of 2`);
+	let headerTitle = $derived(`Question ${currentQuestion} of ${totalQuestions} · Turn ${questionTurn} of ${roomSize}`);
 	let headerRoles = $derived(() => {
-		const sorted = [...students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-		const iIdx = round % 2 === 1 ? 0 : 1;
-		const sIdx = round % 2 === 1 ? 1 : 0;
-		return `${sorted[iIdx]} interviews ${sorted[sIdx]}`;
+		if (!roles) return '';
+		if (isPairRoom) return `${roles.asker} interviews ${roles.answerer}`;
+		return `${roles.asker} asks · ${roles.answerer} answers · ${roles.noteTaker} takes notes`;
 	});
 
 	let nextButtonText = $derived(() => {
 		if (round >= totalRounds) return 'Finish Workshop';
-		if (questionTurn === 1) return 'Switch Roles';
+		if (questionTurn < roomSize) return 'Switch Roles';
 		return `Continue to Question ${currentQuestion + 1}`;
 	});
 
-	// Restore AI data from server on resume (followup/profile phases)
-	if (browser && resumeRoomData && phase !== 'notes') {
+	let resumeHydratedKey = '';
+
+	$effect(() => {
+		if (!browser || !resumeRoomData) return;
 		const currentRound = $interviewState.round;
+		const key = `${$interviewState.sessionId}:${roomId}:${$interviewState.studentName}:${currentRound}`;
+		if (resumeHydratedKey === key) return;
+		resumeHydratedKey = key;
+
+		const submissions = resumeRoomData.submissions || [];
+		const pickText = (field, serverSubmission) => {
+			const localText = localStorage.getItem(draftKey(field, currentRound)) || '';
+			const localSavedAt = Number(localStorage.getItem(draftMetaKey(field, currentRound)) || 0);
+			const serverText = serverSubmission?.notes || '';
+			const serverSavedAt = serverSubmission?.timestamp ? new Date(serverSubmission.timestamp).getTime() : 0;
+			return localText && localSavedAt > serverSavedAt ? localText : serverText || localText;
+		};
+
+		const notesSubmission = submissions.find((s) => s.round === `round${currentRound}-notes` && s.studentName === $interviewState.studentName);
+		const restoredNotes = pickText('notes', notesSubmission);
+		if (restoredNotes) notesText = restoredNotes;
+
+		const followupSubmission = submissions.find((s) => s.round === `round${currentRound}-followup` && s.studentName === $interviewState.studentName);
+		const restoredFollowup = pickText('followup', followupSubmission);
+		if (restoredFollowup) followupText = restoredFollowup;
+
 		if (phase === 'followup') {
 			const aiFollowUps = resumeRoomData.aiFollowUps || [];
-			const lastEntry = aiFollowUps.length > 0 ? aiFollowUps[aiFollowUps.length - 1] : null;
-			if (lastEntry && lastEntry.questions && lastEntry.questions.length > 0) {
-				followupQuestions = lastEntry.questions;
+			const roundEntry = aiFollowUps.find((f) => Number(f.round || 0) === currentRound) || aiFollowUps[aiFollowUps.length - 1];
+			if (roundEntry?.questions?.length) {
+				followupQuestions = roundEntry.questions;
 			} else {
 				phase = 'notes';
 			}
 		} else if (phase === 'profile') {
 			const profiles = resumeRoomData.capabilityProfiles || [];
-			const roundProfile = profiles.find((p) => p.round === currentRound);
+			const roundProfile = profiles.find((p) => Number(p.round) === currentRound && p.studentName === answererName);
 			if (roundProfile) {
 				profileData = {
 					summary: roundProfile.summary || 'Profile generated.',
@@ -107,23 +169,7 @@
 				phase = 'notes';
 			}
 		}
-	}
-
-	// Hydrate notes/followup from server submissions on reconnect
-	// Server state takes priority over localStorage — localStorage may be stale if sendBeacon saved newer data
-	if (browser && resumeRoomData) {
-		const submissions = resumeRoomData.submissions || [];
-		const currentRound = $interviewState.round;
-		const notesSubmission = submissions.find((s) => s.round === `round${currentRound}-notes`);
-		if (notesSubmission && notesSubmission.notes) {
-			// Prefer server data: it reflects the latest sendBeacon or debounced save
-			notesText = notesSubmission.notes;
-		}
-		const followupSubmission = submissions.find((s) => s.round === `round${currentRound}-followup`);
-		if (followupSubmission && followupSubmission.notes) {
-			followupText = followupSubmission.notes;
-		}
-	}
+	});
 
 	function debouncedSave(text, roundLabel) {
 		clearTimeout(debounceTimer);
@@ -134,7 +180,8 @@
 					sessionId: $interviewState.sessionId,
 					roomId,
 					studentName: $interviewState.studentName,
-					aboutStudent: partnerName,
+					aboutStudent: answererName,
+					role: isPairRoom ? 'interviewer' : 'note-taker',
 					notes: text.trim(),
 					round: roundLabel
 				}
@@ -159,13 +206,14 @@
 					sessionId: $interviewState.sessionId,
 					roomId,
 					studentName: $interviewState.studentName,
-					aboutStudent: partnerName,
+					aboutStudent: answererName,
+					role: isPairRoom ? 'interviewer' : 'note-taker',
 					notes: notesText.trim(),
 					round: `round${round}-notes`
 				}
 			});
 			const data = await api('workshop-followup', {
-				body: { sessionId: $interviewState.sessionId, roomId, notes: notesText.trim() }
+				body: { sessionId: $interviewState.sessionId, roomId, notes: notesText.trim(), round, studentName: $interviewState.studentName, aboutStudent: answererName }
 			});
 			followupQuestions = data.questions || data.followups || [];
 			phase = 'followup';
@@ -184,7 +232,7 @@
 		generatingQuestions = true;
 		try {
 			const data = await api('workshop-followup', {
-				body: { sessionId: $interviewState.sessionId, roomId, notes: combined, regenerate: true }
+				body: { sessionId: $interviewState.sessionId, roomId, notes: combined, round, studentName: $interviewState.studentName, aboutStudent: answererName, regenerate: true }
 			});
 			followupQuestions = data.questions || data.followups || [];
 		} catch (err) {
@@ -208,7 +256,8 @@
 					sessionId: $interviewState.sessionId,
 					roomId,
 					studentName: $interviewState.studentName,
-					aboutStudent: partnerName,
+					aboutStudent: answererName,
+					role: isPairRoom ? 'interviewer' : 'note-taker',
 					notes: followupText.trim(),
 					round: `round${round}-followup`
 				}
@@ -225,7 +274,7 @@
 		generatingProfile = true;
 		try {
 			const data = await api('workshop-profile', {
-				body: { sessionId: $interviewState.sessionId, roomId, studentName: partnerName, round }
+				body: { sessionId: $interviewState.sessionId, roomId, studentName: answererName, round }
 			});
 			const profile = data.profile || data;
 			profileData = {
@@ -253,10 +302,7 @@
 			return;
 		}
 		// Clear persisted textarea content for the completed round
-		if (browser) {
-			localStorage.removeItem('ws_notesText');
-			localStorage.removeItem('ws_followupText');
-		}
+		clearDraftsForRound(round);
 		// Reset for next round
 		phase = 'notes';
 		notesText = '';
@@ -268,37 +314,38 @@
 
 		interviewState.update((s) => {
 			const newRound = s.round + 1;
-			const sorted = [...s.students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-			const iIdx = newRound % 2 === 1 ? 0 : 1;
-			const sIdx = newRound % 2 === 1 ? 1 : 0;
+			const newRoles = rolesForRound(s.students, newRound, s.roomSize || 2);
+			let newRole = 'answerer';
+			if ((s.roomSize || 2) === 2) {
+				newRole = newRoles?.noteTaker === s.studentName ? 'interviewer' : 'storyteller';
+			} else if (newRoles?.noteTaker === s.studentName) {
+				newRole = 'note-taker';
+			} else if (newRoles?.asker === s.studentName) {
+				newRole = 'asker';
+			}
 			return {
 				...s,
 				round: newRound,
-				role: sorted[iIdx] === s.studentName ? 'interviewer' : 'storyteller',
-				partnerName: sorted[iIdx] === s.studentName ? sorted[sIdx] : sorted[iIdx]
+				role: newRole,
+				roles: newRoles,
+				partnerName: newRoles?.answerer || ''
 			};
 		});
 	}
 
 	// Partner presence polling
 	function updatePartnerPresence(room) {
-		const presence = room.presence || { student1: { online: false, lastSeen: null }, student2: { online: false, lastSeen: null } };
+		const presence = room.presence || {};
 		const myName = $interviewState.studentName;
-		// Find partner's presence slot
-		let partnerPresence = null;
-		if (room.students) {
-			if (room.students.student1 === myName) {
-				partnerPresence = presence.student2;
-			} else if (room.students.student2 === myName) {
-				partnerPresence = presence.student1;
-			}
-		}
-		if (!partnerPresence) return;
+		const mySlot = findStudentSlot(room.students, myName, room.roomSize || roomSize);
+		if (!mySlot) return;
 
-		// Compute online status using the same 30s threshold
-		const isOnline = partnerPresence.lastSeen
-			? (Date.now() - new Date(partnerPresence.lastSeen).getTime() <= CFG.presence_timeout)
-			: false;
+		const otherSlots = Object.keys(room.students || {}).filter((slot) => slot !== mySlot && room.students[slot]);
+		if (otherSlots.length === 0) return;
+		const isOnline = otherSlots.every((slot) => {
+			const p = presence[slot];
+			return p?.lastSeen ? (Date.now() - new Date(p.lastSeen).getTime() <= CFG.presence_timeout) : false;
+		});
 
 		partnerPreviousOnline = partnerOnline;
 		partnerOnline = isOnline;
@@ -310,16 +357,12 @@
 		if (!room.students) return false;
 
 		// Check if student is still in this room
-		const stillInRoom = room.students.student1 === myName || room.students.student2 === myName;
+		const stillInRoom = !!findStudentSlot(room.students, myName, room.roomSize || roomSize);
 		if (stillInRoom) return false;
 
 		// Student is not in the room — check for movedTo marker
-		let movedToInfo = null;
-		if (room.student1_movedTo && room.student1_movedTo.studentName === myName) {
-			movedToInfo = room.student1_movedTo;
-		} else if (room.student2_movedTo && room.student2_movedTo.studentName === myName) {
-			movedToInfo = room.student2_movedTo;
-		}
+		const movedToInfo = Object.entries(room)
+			.find(([key, value]) => key.endsWith('_movedTo') && value?.studentName === myName)?.[1] || null;
 
 		if (!movedToInfo) return false;
 
@@ -345,20 +388,16 @@
 		const myName = $interviewState.studentName;
 		const currentPartner = $interviewState.partnerName;
 
-		// Find the other student in the room
-		let newPartnerName = null;
-		if (room.students.student1 === myName) {
-			newPartnerName = room.students.student2 || null;
-		} else if (room.students.student2 === myName) {
-			newPartnerName = room.students.student1 || null;
-		}
+		const roomNames = Object.values(room.students || {}).filter(Boolean);
+		const knownNames = students;
+		const newPartnerName = roomNames.find((name) => name !== myName && !knownNames.includes(name)) || null;
 
 		// If there's no partner or partner hasn't changed, no move detected
 		if (!newPartnerName || !currentPartner || newPartnerName === currentPartner) return false;
 
 		// Partner name changed — verify via movedFrom marker or name mismatch
-		const hasMovedFrom = (room.student1_movedFrom && room.student1_movedFrom.studentName === newPartnerName) ||
-			(room.student2_movedFrom && room.student2_movedFrom.studentName === newPartnerName);
+		const hasMovedFrom = Object.entries(room)
+			.some(([key, value]) => key.endsWith('_movedFrom') && value?.studentName === newPartnerName);
 
 		if (hasMovedFrom || newPartnerName !== currentPartner) {
 			onNewPartner({ newRoom: room, newPartnerName });
@@ -430,15 +469,18 @@
 				// Update presence from the same poll
 				updatePartnerPresence(room);
 
+				if (isAsker) {
+					const roundFollowup = (room.aiFollowUps || []).find((f) => Number(f.round || 0) === $interviewState.round);
+					if (roundFollowup?.questions?.length) {
+						followupQuestions = roundFollowup.questions;
+					}
+				}
+
 				const currentRound = room.currentRound || room.round;
 				if (currentRound && currentRound > $interviewState.round) {
 					clearInterval(storytellerPollInterval);
 					storytellerPollInterval = null;
-					// Clear persisted textarea content for the completed round
-					if (browser) {
-						localStorage.removeItem('ws_notesText');
-						localStorage.removeItem('ws_followupText');
-					}
+					clearDraftsForRound($interviewState.round);
 					// Reset local phase
 					phase = 'notes';
 					notesText = '';
@@ -449,14 +491,21 @@
 					customTags = [];
 
 					interviewState.update((s) => {
-						const sorted = [...s.students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-						const iIdx = currentRound % 2 === 1 ? 0 : 1;
-						const sIdx = currentRound % 2 === 1 ? 1 : 0;
+						const newRoles = rolesForRound(s.students, currentRound, s.roomSize || 2);
+						let newRole = 'answerer';
+						if ((s.roomSize || 2) === 2) {
+							newRole = newRoles?.noteTaker === s.studentName ? 'interviewer' : 'storyteller';
+						} else if (newRoles?.noteTaker === s.studentName) {
+							newRole = 'note-taker';
+						} else if (newRoles?.asker === s.studentName) {
+							newRole = 'asker';
+						}
 						return {
 							...s,
 							round: currentRound,
-							role: sorted[iIdx] === s.studentName ? 'interviewer' : 'storyteller',
-							partnerName: sorted[iIdx] === s.studentName ? sorted[sIdx] : sorted[iIdx]
+							role: newRole,
+							roles: newRoles,
+							partnerName: newRoles?.answerer || ''
 						};
 					});
 				}
@@ -481,7 +530,8 @@
 					sessionId: $interviewState.sessionId,
 					roomId,
 					studentName: $interviewState.studentName,
-					aboutStudent: partnerName
+					aboutStudent: answererName,
+					role: isPairRoom ? 'interviewer' : 'note-taker'
 				};
 				if (notesText.trim()) {
 					navigator.sendBeacon(
@@ -504,27 +554,35 @@
 	// Persist interview sub-phase to localStorage on every change
 	$effect(() => {
 		if (browser) {
-			localStorage.setItem('ws_interviewPhase', phase);
+			localStorage.setItem(draftKey('phase'), phase);
+			localStorage.removeItem('ws_interviewPhase');
 		}
 	});
 
 	// Persist textarea content to localStorage on every change
 	$effect(() => {
 		if (browser) {
-			localStorage.setItem('ws_notesText', notesText);
+			localStorage.setItem(draftKey('notes'), notesText);
+			localStorage.setItem(draftMetaKey('notes'), String(Date.now()));
+			localStorage.removeItem('ws_notesText');
 		}
 	});
 
 	$effect(() => {
 		if (browser) {
-			localStorage.setItem('ws_followupText', followupText);
+			localStorage.setItem(draftKey('followup'), followupText);
+			localStorage.setItem(draftMetaKey('followup'), String(Date.now()));
+			localStorage.removeItem('ws_followupText');
 		}
 	});
 
 	// Show welcome-back toast on reconnection (rejoined session)
 	$effect(() => {
 		if (rejoined && role) {
-			const roleLabel = role === 'interviewer' ? 'Interviewer' : 'Storyteller';
+			const roleLabel = role === 'interviewer' ? 'Interviewer' :
+				role === 'storyteller' ? 'Storyteller' :
+				role === 'asker' ? 'Asker' :
+				role === 'note-taker' ? 'Note-taker' : 'Answerer';
 			welcomeBackMessage = `Welcome back! You're in Round ${round} as ${roleLabel}.`;
 			showWelcomeBackToast = true;
 		}
@@ -538,10 +596,10 @@
 	});
 
 	$effect(() => {
-		if (role === 'storyteller') {
+	if (!isNoteTaker) {
 			startStorytellerPoll();
 		} else {
-			// Interviewer: start a separate presence poll (storyteller gets presence from its own poll)
+			// Note-taker/interviewer: start a separate presence poll (other roles get presence from their own poll)
 			startPresencePoll();
 		}
 		return () => {
@@ -581,12 +639,12 @@
 	<p>{promptText()}</p>
 </div>
 
-{#if role === 'interviewer'}
-	<span class="ws-role-label ws-role-label--interviewer">You are the interviewer</span>
+{#if isNoteTaker}
+	<span class="ws-role-label ws-role-label--interviewer">{isPairRoom ? 'You are the interviewer' : 'You are the note-taker'}</span>
 
 	{#if phase === 'notes'}
 		<div class="ws-field">
-			<label class="ws-label" for="notes-textarea">Capture what your partner shares</label>
+			<label class="ws-label" for="notes-textarea">Capture what {answererName} shares</label>
 			<textarea
 				id="notes-textarea"
 				class="ws-textarea"
@@ -696,10 +754,29 @@
 			</div>
 		{/if}
 	{/if}
-{:else}
-	<span class="ws-role-label ws-role-label--storyteller">You are the storyteller</span>
+{:else if isAsker}
+	<span class="ws-role-label ws-role-label--interviewer">{isPairRoom ? 'You are the interviewer' : 'You are the asker'}</span>
 	<div class="ws-storyteller-message">
-		<p>Share your story with your partner. They are taking notes.<br>Take your time — 3-4 minutes is the goal.</p>
+		<p>Ask {answererName} the prompt and keep the conversation moving.</p>
+	</div>
+	{#if followupQuestions.length > 0}
+		<h3 style="margin:18px 0 8px;font-size:17px;color:var(--ci-accent);">Follow-up questions to ask</h3>
+		<div class="ws-followup-cards">
+			{#each followupQuestions as q, i}
+				<div class="ws-followup-card ws-followup-card--visible" style="animation-delay: {100 + i * 150}ms">
+					{typeof q === 'string' ? q : q.question || q.text || ''}
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<div class="ws-storyteller-message">
+			<p>Follow-up questions will appear here after {noteTakerName || 'the note-taker'} submits the first notes.</p>
+		</div>
+	{/if}
+{:else}
+	<span class="ws-role-label ws-role-label--storyteller">{isPairRoom ? 'You are the storyteller' : 'You are the answerer'}</span>
+	<div class="ws-storyteller-message">
+		<p>Share your story with {askerName || 'your room'}. {noteTakerName || 'Your note-taker'} is taking notes.<br>Take your time — 3-4 minutes is the goal.</p>
 	</div>
 {/if}
 

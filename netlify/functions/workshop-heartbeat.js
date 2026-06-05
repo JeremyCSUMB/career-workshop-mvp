@@ -4,7 +4,8 @@
  * POST: Update room heartbeat timestamp
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { findStudentSlot, normalizeRoom } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +42,7 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required fields: sessionId, roomId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Check if session has ended
@@ -60,23 +61,9 @@ exports.handler = async (event) => {
 
     // Update per-student presence in the room blob
     if (studentName) {
-      const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+      const room = normalizeRoom(await store.get(`room:${sessionId}:${roomId}`, { type: 'json' }), session);
       if (room) {
-        // Initialize presence if missing (old rooms)
-        if (!room.presence) {
-          room.presence = {
-            student1: { online: false, lastSeen: null },
-            student2: { online: false, lastSeen: null },
-          };
-        }
-
-        // Identify which slot this student occupies
-        let slot = null;
-        if (room.students.student1 === studentName) {
-          slot = 'student1';
-        } else if (room.students.student2 === studentName) {
-          slot = 'student2';
-        }
+        const slot = findStudentSlot(room.students, studentName, room.roomSize);
 
         if (slot) {
           room.presence[slot].online = true;

@@ -13,7 +13,7 @@ export const GUIDE_SECTIONS = [
 		content: `This dashboard helps you facilitate peer interview workshops where students practice telling career stories and giving each other feedback — with AI support working behind the scenes.`,
 		steps: [
 			{ icon: '1', text: 'You create a session with breakout rooms and interview prompts.' },
-			{ icon: '2', text: 'Students join using a link or session code and pair up in rooms.' },
+			{ icon: '2', text: 'Students join using a link or session code and fill pair or triad rooms.' },
 			{ icon: '3', text: 'You monitor conversations in real time — the system flags rooms that need help.' },
 			{ icon: '4', text: 'After the session, AI generates capability profiles and analytics for review.' }
 		],
@@ -28,8 +28,8 @@ export const GUIDE_SECTIONS = [
 		content: `To run a workshop, you first create a session. Here's what each field means:`,
 		steps: [
 			{ icon: 'A', text: 'Session Name — Give it a name your students will recognize (e.g., "Tuesday Section 3").' },
-			{ icon: 'B', text: 'Number of Rooms — One room per pair of students. If you have 20 students, create 10 rooms.' },
-			{ icon: 'C', text: 'Questions — Each question is one interview round. Students swap roles between rounds.' },
+			{ icon: 'B', text: 'Number of Rooms and Room Mode — choose pair rooms for 2 students or triad rooms for 3 students.' },
+			{ icon: 'C', text: 'Questions — each question has one turn per student in the selected room mode.' },
 			{ icon: 'D', text: 'Prompts — Customize what students ask each other. A good default is provided.' }
 		],
 		tips: [

@@ -1,8 +1,9 @@
 /**
  * Shared Anthropic API helper
  *
- * Reads ANTHROPIC_API_KEY from .env file first (Netlify Dev sometimes
- * overrides env vars with internal tokens), then falls back to process.env.
+ * Reads ANTHROPIC_API_KEY from .env file first, then falls back to process.env.
+ * Netlify's local function bundler can change __dirname, so resolve .env from
+ * the current project root before trying helper-relative paths.
  */
 
 const fs = require('fs');
@@ -10,24 +11,41 @@ const path = require('path');
 
 let _cachedKey = null;
 
+function normalizeEnvValue(value) {
+  return value?.trim().replace(/^['"]|['"]$/g, '');
+}
+
+function readDotenvKey() {
+  const candidates = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '../../../.env'),
+    path.resolve(__dirname, '../../../../.env'),
+  ];
+
+  for (const envPath of candidates) {
+    try {
+      const content = fs.readFileSync(envPath, 'utf8');
+      const match = content.match(/^ANTHROPIC_API_KEY=(.+)$/m);
+      const key = normalizeEnvValue(match?.[1]);
+      if (key?.startsWith('sk-ant-')) return key;
+    } catch {
+      // Try the next likely location.
+    }
+  }
+
+  return null;
+}
+
 function getApiKey() {
   if (_cachedKey) return _cachedKey;
 
-  // Try loading from .env file first
-  try {
-    const envPath = path.resolve(__dirname, '../../../.env');
-    const content = fs.readFileSync(envPath, 'utf8');
-    const match = content.match(/^ANTHROPIC_API_KEY=(.+)$/m);
-    if (match && match[1].startsWith('sk-ant-')) {
-      _cachedKey = match[1].trim();
-      return _cachedKey;
-    }
-  } catch {
-    // .env not found — fall through
+  const dotenvKey = readDotenvKey();
+  if (dotenvKey) {
+    _cachedKey = dotenvKey;
+    return _cachedKey;
   }
 
-  // Fall back to env var
-  const key = process.env.ANTHROPIC_API_KEY;
+  const key = normalizeEnvValue(process.env.ANTHROPIC_API_KEY);
   if (key && key.startsWith('sk-ant-')) {
     _cachedKey = key;
     return _cachedKey;

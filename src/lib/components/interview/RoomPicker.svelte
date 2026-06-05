@@ -1,19 +1,17 @@
 <script>
 	import { interviewState } from '$lib/stores/interview.js';
+	import { getStudentNames, normalizeRoomSize } from '$lib/rooms.js';
 
 	let { rooms = [], onJoinRoom, onSwitchSession, claimState = null, onClaimSlot, onCancelClaim } = $props();
 
-	function statusText(count) {
+	function statusText(count, capacity) {
 		if (count === 0) return 'Empty';
-		if (count === 1) return '1 / 2';
+		if (count < capacity) return `${count} / ${capacity}`;
 		return 'Full';
 	}
 
 	function getNames(room) {
-		const students = room.students;
-		if (!students) return [];
-		if (Array.isArray(students)) return students;
-		return Object.values(students).filter(Boolean);
+		return getStudentNames(room.students, room.roomSize || $interviewState.roomSize || 2);
 	}
 </script>
 
@@ -23,8 +21,9 @@
 	<div class="ws-rooms-picker">
 		{#each rooms as room}
 			{@const names = getNames(room)}
+			{@const capacity = normalizeRoomSize(room.roomSize || $interviewState.roomSize || 2)}
 			{@const count = names.length}
-			{@const isFull = count >= 2}
+			{@const isFull = count >= capacity}
 			{@const alreadyIn = names.includes($interviewState.studentName)}
 			<div
 				class="ws-room-pick"
@@ -37,7 +36,7 @@
 				onkeydown={(e) => e.key === 'Enter' && (!isFull || alreadyIn) && onJoinRoom(room.id)}
 			>
 				<div class="ws-room-pick__number">Room {room.id}</div>
-				<div class="ws-room-pick__status">{statusText(count)}</div>
+				<div class="ws-room-pick__status">{statusText(count, capacity)}</div>
 				<div class="ws-room-pick__names">
 					{#if names.length > 0}
 						{#each names as name}

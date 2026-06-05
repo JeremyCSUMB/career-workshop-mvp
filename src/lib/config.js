@@ -6,7 +6,6 @@ export const WORKSHOP_CONFIG = {
 	heartbeat_interval: 15000,
 	nudge_poll_interval: 8000,
 	debounce_save_ms: 1500,
-	dashboard_password: 'workshop2026',
 
 	// Real-time dashboard polling
 	pulse_interval: 2000,

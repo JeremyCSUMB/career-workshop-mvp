@@ -26,6 +26,7 @@
 
 const BASE = process.argv[2] || 'http://localhost:8888';
 const API = `${BASE}/.netlify/functions`;
+let dashboardCookie = '';
 
 // --- Helpers ---
 
@@ -51,7 +52,7 @@ async function post(path, body, { timeout = 30000 } = {}) {
   try {
     const res = await fetch(`${API}/${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(dashboardCookie ? { Cookie: dashboardCookie } : {}) },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -70,7 +71,10 @@ async function get(path, params = {}, { timeout = 60000 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: dashboardCookie ? { Cookie: dashboardCookie } : {},
+    });
     const data = await res.json();
     return { status: res.status, data };
   } catch (err) {
@@ -83,11 +87,39 @@ async function get(path, params = {}, { timeout = 60000 } = {}) {
 async function del(path, body) {
   const res = await fetch(`${API}/${path}`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(dashboardCookie ? { Cookie: dashboardCookie } : {}) },
     body: JSON.stringify(body),
   });
   const data = await res.json();
   return { status: res.status, data };
+}
+
+async function dashboardLogin() {
+  const password = process.env.DASHBOARD_PASSWORD || readLocalEnv('DASHBOARD_PASSWORD');
+  if (!password) {
+    throw new Error('DASHBOARD_PASSWORD is required in the environment or local .env file');
+  }
+
+  const res = await fetch(`${API}/auth-dashboard-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  const setCookie = res.headers.get('set-cookie') || '';
+  dashboardCookie = setCookie.split(';')[0];
+  return { status: res.status, data };
+}
+
+function readLocalEnv(key) {
+  try {
+    const fs = require('fs');
+    const content = fs.readFileSync('.env', 'utf8');
+    const match = content.match(new RegExp(`^${key}=(.+)$`, 'm'));
+    return match?.[1]?.trim().replace(/^['"]|['"]$/g, '');
+  } catch {
+    return null;
+  }
 }
 
 // Realistic interview notes
@@ -119,6 +151,13 @@ async function run() {
   console.log(`   Target: ${API}\n`);
 
   let sessionId, session;
+
+  // ─── 0. Dashboard Auth ───
+  console.log('── 0. Dashboard Auth ──');
+  {
+    const { status } = await dashboardLogin();
+    assert(status === 200 && !!dashboardCookie, 'Dashboard login succeeds');
+  }
 
   // ─── 1. Create Session ───
   console.log('── 1. Create Session ──');
@@ -337,12 +376,15 @@ async function run() {
     assert(s2 === 200, 'Nudge poll (200)');
     assert(d2.nudges?.length === 1, `Got ${d2.nudges?.length} unread nudge(s)`);
 
-    // Poll again — should be empty (marked read)
+    // Poll with since — should be empty because there are no newer nudges
+    const since = d2.nudges?.[d2.nudges.length - 1]?.timestamp;
     const { status: s3, data: d3 } = await get('workshop-nudge', {
       sessionId,
       roomId: '1',
+      since,
     });
-    assert(d3.nudges?.length === 0, 'Second poll returns 0 (already read)');
+    assert(s3 === 200, 'Nudge since poll (200)');
+    assert(d3.nudges?.length === 0, 'Since poll returns 0 newer nudges');
   }
 
   // ─── 12. Pulse Check (after submissions) ───
@@ -548,7 +590,7 @@ async function run() {
     // Invalid JSON
     const res = await fetch(`${API}/workshop-session`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(dashboardCookie ? { Cookie: dashboardCookie } : {}) },
       body: 'not json',
     });
     assert(res.status === 400, 'Invalid JSON returns 400');
@@ -884,9 +926,10 @@ async function run() {
     assert(d1.nudges?.[0]?.message === 'Nudge 1', 'First nudge correct');
     assert(d1.nudges?.[2]?.message === 'Nudge 3', 'Third nudge correct');
 
-    // Poll again — all read
-    const { data: d2 } = await get('workshop-nudge', { sessionId: sid, roomId: '1' });
-    assert(d2.nudges?.length === 0, `Second poll: ${d2.nudges?.length} (expected 0 — all read)`);
+    // Poll with since — no newer nudges
+    const since = d1.nudges?.[d1.nudges.length - 1]?.timestamp;
+    const { data: d2 } = await get('workshop-nudge', { sessionId: sid, roomId: '1', since });
+    assert(d2.nudges?.length === 0, `Since poll: ${d2.nudges?.length} (expected 0 newer nudges)`);
 
     await del('workshop-session', { sessionId: sid });
   }
@@ -947,6 +990,70 @@ async function run() {
     const endedSession = d3.sessions?.find((s) => s.id === sessionId);
     assert(endedSession?.ended === true, 'Session marked as ended');
     assert(!!endedSession?.endedAt, 'Session has endedAt timestamp');
+  }
+
+  // ─── 38. Triad Room Workflow ───
+  console.log('\n── 38. Triad Room Workflow ──');
+  {
+    const { status: createStatus, data: sessData } = await post('workshop-session', {
+      name: 'Triad Workflow Test',
+      roomCount: 1,
+      roomSize: 3,
+      questions: 2,
+      prompts: ['Prompt A', 'Prompt B'],
+    });
+    assert(createStatus === 201, 'Triad session created');
+    const sid = sessData.session.id;
+    assert(sessData.session.roomSize === 3, 'Triad roomSize = 3');
+    assert(sessData.session.rounds === 6, 'Triad rounds = questions * 3');
+
+    await post('workshop-join', { sessionId: sid, roomId: '1', studentName: 'Ari' });
+    await post('workshop-join', { sessionId: sid, roomId: '1', studentName: 'Blake' });
+    await post('workshop-join', { sessionId: sid, roomId: '1', studentName: 'Casey' });
+
+    const { status: fullStatus } = await post('workshop-join', {
+      sessionId: sid,
+      roomId: '1',
+      studentName: 'Dana',
+    });
+    assert(fullStatus === 409, 'Triad room rejects fourth student');
+
+    const { status: roomsStatus, data: roomsData } = await get('workshop-rooms', { sessionId: sid });
+    const room = roomsData.rooms?.[0];
+    assert(roomsStatus === 200, 'Triad rooms endpoint (200)');
+    assert(room?.students?.student3 === 'Casey', 'Third slot populated');
+    assert(room?.presence?.student3, 'Third presence slot exists');
+
+    const triadNotes = 'Blake described coordinating a class project when the original plan failed. They divided responsibilities, tracked blockers, and adjusted the timeline so the team still delivered a working prototype.';
+    const { status: submitStatus } = await post('workshop-submit', {
+      sessionId: sid,
+      roomId: '1',
+      studentName: 'Casey',
+      aboutStudent: 'Blake',
+      role: 'note-taker',
+      notes: triadNotes,
+      round: 'round1-notes',
+    });
+    assert(submitStatus === 200, 'Triad note-taker submitted notes');
+
+    const { status: followStatus, data: followData } = await post('workshop-followup', {
+      sessionId: sid,
+      roomId: '1',
+      studentName: 'Casey',
+      aboutStudent: 'Blake',
+      round: 1,
+      notes: triadNotes,
+    });
+    assert(followStatus === 200, 'Triad follow-ups generated');
+    assert(Array.isArray(followData.questions) && followData.questions.length >= 1, 'Triad follow-ups returned questions');
+
+    const { data: roomDataAfterFollowup } = await get('workshop-room', { sessionId: sid, roomId: '1' });
+    assert(
+      roomDataAfterFollowup.room?.aiFollowUps?.some((f) => f.round === 1),
+      'Triad follow-up stored with round number'
+    );
+
+    await del('workshop-session', { sessionId: sid });
   }
 
   // ─── Summary ───

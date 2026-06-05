@@ -5,8 +5,10 @@
  *       Uses heuristics first, falls back to AI classification.
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
 const { callClaude } = require('./lib/anthropic');
+const { normalizeRoom } = require('./lib/rooms');
+const { requireDashboardAuth } = require('./lib/dashboard-auth');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +29,9 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
+  const authError = requireDashboardAuth(event);
+  if (authError) return authError;
+
   if (event.httpMethod !== 'POST') {
     return json(405, { error: 'Method not allowed' });
   }
@@ -43,10 +48,11 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required fields: sessionId, roomId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
-    const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+    const session = await store.get(`session:${sessionId}`, { type: 'json' }).catch(() => null);
+    const room = normalizeRoom(await store.get(`room:${sessionId}:${roomId}`, { type: 'json' }), session || {});
     if (!room) {
       return json(404, { error: 'Room not found' });
     }
@@ -92,7 +98,7 @@ exports.handler = async (event) => {
           return `[${s.studentName} — ${phase}${about}]: ${s.notes}`;
         }).join('\n\n');
 
-        const systemPrompt = 'You are classifying student engagement in a peer interview workshop where students take turns interviewing each other. Each student tells their OWN story when they are the storyteller, and takes notes about their PARTNER\'s story when they are the interviewer. The notes from different students describe DIFFERENT stories from different people — do not treat them as one narrative. Given the interview notes, classify the room status. Return ONLY valid JSON: { "status": "red|yellow|green", "reasoning": "brief explanation", "suggested_nudge": "optional nudge message or null" }';
+        const systemPrompt = 'You are classifying student engagement in a peer interview workshop. Pair rooms rotate interviewer/storyteller roles. Triad rooms rotate asker, answerer, and note-taker roles. Each answerer tells their OWN story, and notes about different students may describe DIFFERENT stories — do not treat them as one narrative. Given the interview notes, classify the room status. Return ONLY valid JSON: { "status": "red|yellow|green", "reasoning": "brief explanation", "suggested_nudge": "optional nudge message or null" }';
 
         const aiText = await callClaude(systemPrompt, `Interview notes from this room:\n\n${allNotes}`);
 
@@ -105,7 +111,7 @@ exports.handler = async (event) => {
             reasoning: parsed.reasoning,
             method: 'ai',
             timestamp: now.toISOString(),
-            suggestedNudge: parsed.suggested_nudge || null,
+            suggestedNudge: parsed.suggested_nudge || parsed.suggestedNudge || null,
           };
         } else {
           throw new Error('AI did not return valid JSON');

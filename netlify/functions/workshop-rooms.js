@@ -4,7 +4,8 @@
  * GET: Return all rooms for a session
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { normalizeRoom, normalizeRoomSize } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,18 +35,19 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required query parameter: sessionId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Fetch session to get custom prompts and round count
     const session = await store.get(`session:${sessionId}`, { type: 'json' });
-    const rounds = session?.rounds || 2;
+    const roomSize = normalizeRoomSize(session?.roomSize);
+    const rounds = session?.rounds || roomSize;
     const prompts = session?.prompts || null;
 
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
     const rooms = (await Promise.all(
       blobs.map((blob) => store.get(blob.key, { type: 'json' }))
-    )).filter(Boolean);
+    )).filter(Boolean).map((room) => normalizeRoom(room, session || {}));
 
     // Look up user profiles for authenticated students
     const emailSet = new Set();
@@ -79,7 +81,7 @@ exports.handler = async (event) => {
       }
     }
 
-    return json(200, { rooms, rounds, prompts, ended: !!session?.ended });
+    return json(200, { rooms, rounds, prompts, roomSize, ended: !!session?.ended });
   } catch (error) {
     console.error('List rooms error:', error);
     return json(500, { error: 'Failed to list rooms' });

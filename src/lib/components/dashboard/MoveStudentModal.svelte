@@ -16,7 +16,7 @@
 		return rooms.filter(r => {
 			if (String(r.id) === String(fromRoomId)) return false;
 			const names = r._studentNames || [];
-			return names.length < 2;
+			return names.length < (r.roomSize || 2);
 		});
 	});
 
@@ -108,6 +108,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-label="Move {studentName} to another room"
+		tabindex="-1"
 	>
 		<div class="ws-modal" bind:this={modalEl}>
 			{#if step === 'select'}

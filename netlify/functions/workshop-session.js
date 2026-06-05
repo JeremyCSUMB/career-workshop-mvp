@@ -5,7 +5,9 @@
  * GET:  List all sessions
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { requireDashboardAuth } = require('./lib/dashboard-auth');
+const { getRoomSlots, normalizeRoomSize, totalRoundsForQuestions } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -21,11 +23,14 @@ function json(statusCode, data) {
   };
 }
 
-function makeEmptyRoom(sessionId, roomId) {
+function makeEmptyRoom(sessionId, roomId, roomSize = 2) {
+  const size = normalizeRoomSize(roomSize);
+  const slots = getRoomSlots(size);
   return {
     id: roomId,
     sessionId,
-    students: {},
+    roomSize: size,
+    students: Object.fromEntries(slots.map((slot) => [slot, null])),
     currentRound: 1,
     roundStartTime: null,
     lastHeartbeat: null,
@@ -36,10 +41,8 @@ function makeEmptyRoom(sessionId, roomId) {
     capabilityProfiles: [],
     classifications: [],
     nudges: [],
-    presence: {
-      student1: { online: false, lastSeen: null },
-      student2: { online: false, lastSeen: null },
-    },
+    studentEmails: Object.fromEntries(slots.map((slot) => [slot, null])),
+    presence: Object.fromEntries(slots.map((slot) => [slot, { online: false, lastSeen: null }])),
   };
 }
 
@@ -48,7 +51,10 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const authError = requireDashboardAuth(event);
+  if (authError) return authError;
+
+  const store = getWorkshopStore();
 
   // --- GET: list sessions ---
   if (event.httpMethod === 'GET') {
@@ -56,7 +62,10 @@ exports.handler = async (event) => {
       const { blobs } = await store.list({ prefix: 'session:' });
       const sessions = (await Promise.all(
         blobs.map((blob) => store.get(blob.key, { type: 'json' }))
-      )).filter(Boolean);
+      )).filter(Boolean).map((session) => ({
+        ...session,
+        roomSize: normalizeRoomSize(session.roomSize),
+      }));
       return json(200, { sessions });
     } catch (error) {
       console.error('List sessions error:', error);
@@ -73,15 +82,16 @@ exports.handler = async (event) => {
       return json(400, { error: 'Invalid JSON in request body' });
     }
 
-    const { name, roomCount, rounds, questions, prompts } = body;
+    const { name, roomCount, rounds, questions, prompts, roomSize } = body;
     if (!name || !roomCount || roomCount < 1) {
       return json(400, { error: 'Missing required fields: name, roomCount (>= 1)' });
     }
 
     const defaultPrompt = 'Tell your partner about a time you had to figure something out where there wasn\'t a clear answer. Any context \u2014 work, school, personal. Don\'t pick the most impressive story. Pick what comes to mind first. 3-4 minutes.';
-    // questions = number of prompts; rounds = questions * 2 (each question has 2 turns)
-    const questionCount = Math.max(1, Math.min(10, questions || Math.ceil((rounds || 1) / 2)));
-    const roundCount = questionCount * 2;
+    const size = normalizeRoomSize(roomSize);
+    // questions = number of prompts; rounds = questions * roomSize (each question has one turn per student)
+    const questionCount = Math.max(1, Math.min(10, questions || Math.ceil((rounds || 1) / size)));
+    const roundCount = totalRoundsForQuestions(questionCount, size);
 
     // Build prompts array — one per question, falling back to default
     const sessionPrompts = [];
@@ -95,6 +105,7 @@ exports.handler = async (event) => {
       name,
       created: new Date().toISOString(),
       roomCount,
+      roomSize: size,
       rounds: roundCount,
       questions: questionCount,
       prompts: sessionPrompts,
@@ -106,7 +117,7 @@ exports.handler = async (event) => {
       // Create empty room blobs
       for (let i = 1; i <= roomCount; i++) {
         const roomId = String(i);
-        await store.setJSON(`room:${sessionId}:${roomId}`, makeEmptyRoom(sessionId, roomId));
+        await store.setJSON(`room:${sessionId}:${roomId}`, makeEmptyRoom(sessionId, roomId, size));
       }
 
       return json(201, { session });

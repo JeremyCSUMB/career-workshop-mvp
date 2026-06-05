@@ -4,7 +4,9 @@
  * GET: Check all rooms in a session for inactivity (no heartbeat > 90s)
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { getStudentNames, normalizeRoom } = require('./lib/rooms');
+const { requireDashboardAuth } = require('./lib/dashboard-auth');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +29,9 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
+  const authError = requireDashboardAuth(event);
+  if (authError) return authError;
+
   if (event.httpMethod !== 'GET') {
     return json(405, { error: 'Method not allowed' });
   }
@@ -36,19 +41,20 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required query parameter: sessionId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
+    const session = await store.get(`session:${sessionId}`, { type: 'json' }).catch(() => null);
     const now = new Date();
     const flagged = [];
 
     for (const blob of blobs) {
-      const room = await store.get(blob.key, { type: 'json' });
+      const room = normalizeRoom(await store.get(blob.key, { type: 'json' }), session || {});
       if (!room) continue;
 
       // Skip rooms with no heartbeat (never started) or no students
-      if (!room.lastHeartbeat || Object.keys(room.students).length === 0) continue;
+      if (!room.lastHeartbeat || getStudentNames(room.students, room.roomSize).length === 0) continue;
 
       const heartbeatAge = now - new Date(room.lastHeartbeat);
       if (heartbeatAge <= INACTIVITY_THRESHOLD_MS) continue;

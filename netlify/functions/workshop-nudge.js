@@ -5,7 +5,8 @@
  * GET:  Get unread nudges for a room (and mark them read)
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { requireDashboardAuth } = require('./lib/dashboard-auth');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -26,7 +27,7 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   // --- GET: fetch nudges (read-only — no write to room blob) ---
   if (event.httpMethod === 'GET') {
@@ -57,6 +58,9 @@ exports.handler = async (event) => {
 
   // --- POST: send nudge ---
   if (event.httpMethod === 'POST') {
+    const authError = requireDashboardAuth(event);
+    if (authError) return authError;
+
     let body;
     try {
       body = JSON.parse(event.body);

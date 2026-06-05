@@ -7,7 +7,7 @@
  */
 
 const { signJwt } = require('./lib/jwt');
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
@@ -61,7 +61,7 @@ exports.handler = async (event) => {
     tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok) {
-      console.error('Token exchange failed:', tokenData);
+      console.error('Token exchange failed:', tokenResponse.status);
       return {
         statusCode: 502,
         headers: { 'Content-Type': 'application/json' },
@@ -103,7 +103,7 @@ exports.handler = async (event) => {
 
   // Store user profile in Netlify Blobs for the instructor dashboard
   try {
-    const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+    const store = getWorkshopStore();
     await store.setJSON(`user:${email}`, {
       name,
       email,
@@ -118,7 +118,7 @@ exports.handler = async (event) => {
   // Determine redirect destination
   const state = event.queryStringParameters?.state;
   let redirectTo = '/interview';
-  if (state) {
+  if (state && state.startsWith('/') && !state.startsWith('//')) {
     // The state param contains the original path the student was trying to reach
     // e.g., "/interview?code=ABC123"
     redirectTo = state;

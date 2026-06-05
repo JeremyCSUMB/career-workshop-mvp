@@ -6,7 +6,9 @@
  * timestamps and counts, not full submission data.
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { getRoomSlots, getStudentNames, normalizeRoom } = require('./lib/rooms');
+const { requireDashboardAuth } = require('./lib/dashboard-auth');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +29,9 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
 
+  const authError = requireDashboardAuth(event);
+  if (authError) return authError;
+
   if (event.httpMethod !== 'GET') {
     return json(405, { error: 'Method not allowed' });
   }
@@ -36,9 +41,10 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required query parameter: sessionId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
+    const session = await store.get(`session:${sessionId}`, { type: 'json' }).catch(() => null);
     const { blobs } = await store.list({ prefix: `room:${sessionId}:` });
 
     // Fetch room blobs and their separate heartbeat blobs in parallel
@@ -56,11 +62,12 @@ exports.handler = async (event) => {
     const now = Date.now();
     const PRESENCE_TIMEOUT = 30000;
 
-    for (const { room: data, heartbeat: hbData } of allData) {
+    for (const { room, heartbeat: hbData } of allData) {
+      const data = normalizeRoom(room, session || {});
       if (!data) continue;
 
       const students = data.students || {};
-      const studentNames = Object.values(students).filter(Boolean);
+      const studentNames = getStudentNames(students, data.roomSize);
       const submissions = data.submissions || [];
       const totalWords = submissions.reduce((sum, s) => sum + (s.wordCount || 0), 0);
       const latestSubmissionTime = submissions.length > 0
@@ -75,13 +82,11 @@ exports.handler = async (event) => {
         const elapsed = now - new Date(p.lastSeen).getTime();
         return { online: elapsed <= PRESENCE_TIMEOUT, lastSeen: p.lastSeen };
       };
-      const presence = {
-        student1: computeOnline('student1'),
-        student2: computeOnline('student2'),
-      };
+      const presence = Object.fromEntries(getRoomSlots(data.roomSize).map((slot) => [slot, computeOnline(slot)]));
 
       rooms.push({
         id: data.id,
+        roomSize: data.roomSize,
         studentCount: studentNames.length,
         studentNames,
         students: students,

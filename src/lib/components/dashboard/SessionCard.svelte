@@ -106,7 +106,7 @@
 				{/if}
 			</div>
 			<div class="ws-session-card__meta">
-				{session.roomCount} rooms &middot; Created {relativeTime(session.created)}
+				{session.roomCount} rooms &middot; {session.roomSize === 3 ? 'Triads' : 'Pairs'} &middot; Created {relativeTime(session.created)}
 				{#if !isEnded && studentCount !== null}
 					&middot; <strong>{studentCount}</strong> student{studentCount !== 1 ? 's' : ''} joined
 				{/if}

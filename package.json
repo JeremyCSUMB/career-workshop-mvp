@@ -13,6 +13,9 @@
     "@netlify/blobs": "^10.7.4",
     "jsonwebtoken": "^9.0.3"
   },
+  "overrides": {
+    "cookie": "0.7.2"
+  },
   "engines": {
     "node": ">=18.0.0"
   },

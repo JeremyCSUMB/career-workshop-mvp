@@ -16,9 +16,11 @@ function createInterviewStore() {
 		phase: load('ws_phase', 'entry'),
 		students: [],
 		role: null,
+		roles: null,
 		partnerName: '',
 		customTags: [],
 		totalRounds: parseInt(load('ws_totalRounds', '1'), 10),
+		roomSize: parseInt(load('ws_roomSize', '2'), 10),
 		prompts: (() => { try { return JSON.parse(load('ws_prompts', '[]')); } catch { return []; } })(),
 		codeFromUrl: false
 	};
@@ -34,6 +36,7 @@ function createInterviewStore() {
 		localStorage.setItem('ws_round', String(s.round));
 		localStorage.setItem('ws_phase', s.phase);
 		localStorage.setItem('ws_totalRounds', String(s.totalRounds));
+		localStorage.setItem('ws_roomSize', String(s.roomSize || 2));
 		localStorage.setItem('ws_prompts', JSON.stringify(s.prompts));
 	}
 
@@ -47,7 +50,8 @@ function createInterviewStore() {
 		/** Reset to clean entry state */
 		reset() {
 			if (browser) {
-				['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_totalRounds', 'ws_prompts', 'ws_interviewPhase', 'ws_notesText', 'ws_followupText'].forEach((k) => localStorage.removeItem(k));
+				['ws_sessionId', 'ws_roomId', 'ws_studentName', 'ws_round', 'ws_phase', 'ws_totalRounds', 'ws_roomSize', 'ws_prompts', 'ws_interviewPhase', 'ws_notesText', 'ws_followupText'].forEach((k) => localStorage.removeItem(k));
+				Object.keys(localStorage).filter((k) => k.startsWith('ws_draft_')).forEach((k) => localStorage.removeItem(k));
 			}
 			set({
 				sessionId: '',
@@ -57,9 +61,11 @@ function createInterviewStore() {
 				phase: 'entry',
 				students: [],
 				role: null,
+				roles: null,
 				partnerName: '',
 				customTags: [],
 				totalRounds: 1,
+				roomSize: 2,
 				prompts: [],
 				codeFromUrl: false
 			});

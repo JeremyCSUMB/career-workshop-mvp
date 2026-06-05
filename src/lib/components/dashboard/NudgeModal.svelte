@@ -88,6 +88,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-label="Send nudge to Room {roomId}"
+		tabindex="-1"
 	>
 		<div class="ws-modal" bind:this={modalEl}>
 			<h3>Send Nudge</h3>

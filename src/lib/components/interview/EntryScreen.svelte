@@ -8,12 +8,15 @@
 	let loading = $state(false);
 	let error = $state('');
 	let sessionInput = $state('');
-	let nameInput = $state(googleName);
+	let nameInput = $state('');
 
 	// Only autofill the session code when it comes from a ?code= URL parameter
 	$effect(() => {
 		if (codeFromUrl) {
 			sessionInput = untrack(() => $interviewState.sessionId);
+		}
+		if (googleName && !nameInput) {
+			nameInput = googleName;
 		}
 	});
 
@@ -49,6 +52,7 @@
 				sessionId,
 				studentName,
 				totalRounds: data.rounds || s.totalRounds,
+				roomSize: data.roomSize || s.roomSize || 2,
 				prompts: data.prompts || s.prompts
 			}));
 			onRoomsFound(rooms);

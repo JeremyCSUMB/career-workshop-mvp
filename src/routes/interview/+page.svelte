@@ -4,6 +4,7 @@
 	import { api } from '$lib/api.js';
 	import { WORKSHOP_CONFIG as CFG } from '$lib/config.js';
 	import { interviewState } from '$lib/stores/interview.js';
+	import { getStudentNames, rolesForRound } from '$lib/rooms.js';
 	import NudgeBanner from '$lib/components/NudgeBanner.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import EntryScreen from '$lib/components/interview/EntryScreen.svelte';
@@ -53,7 +54,7 @@
 
 	function navTo(target) {
 		if (target === 'home') {
-			if ($interviewState.students.length >= 2) goToScreen('interview');
+			if ($interviewState.students.length >= ($interviewState.roomSize || 2)) goToScreen('interview');
 			else if ($interviewState.roomId) goToScreen('waiting');
 			else goToScreen('rooms');
 		} else if (target === 'interview' && (screen === 'interview' || screen === 'waiting')) {
@@ -113,10 +114,11 @@
 					params: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId }
 				});
 				const room = data.room || data;
-				const students = extractStudentNames(room.students);
-				interviewState.update((s) => ({ ...s, students }));
+				const roomSize = room.roomSize || $interviewState.roomSize || 2;
+				const students = extractStudentNames(room.students, roomSize);
+				interviewState.update((s) => ({ ...s, students, roomSize }));
 
-				if (students.length >= 2) {
+				if (students.length >= roomSize) {
 					clearInterval(waitingPollInterval);
 					waitingPollInterval = null;
 					setTimeout(() => startInterview(), 1500);
@@ -127,24 +129,25 @@
 		waitingPollInterval = setInterval(poll, 3000);
 	}
 
-	function extractStudentNames(studentsObj) {
-		if (!studentsObj) return [];
-		if (Array.isArray(studentsObj)) return studentsObj;
-		return Object.values(studentsObj).filter(Boolean);
+	function extractStudentNames(studentsObj, roomSize = $interviewState.roomSize || 2) {
+		return getStudentNames(studentsObj, roomSize);
 	}
 
 	function determineRoles(students, round) {
-		const sorted = [...students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-		const iIdx = round % 2 === 1 ? 0 : 1;
-		const sIdx = round % 2 === 1 ? 1 : 0;
-		return { interviewer: sorted[iIdx], storyteller: sorted[sIdx] };
+		return rolesForRound(students, round, $interviewState.roomSize || 2);
 	}
 
 	function startInterview() {
 		const roles = determineRoles($interviewState.students, $interviewState.round);
-		const myRole = roles.interviewer === $interviewState.studentName ? 'interviewer' : 'storyteller';
-		const partner = myRole === 'interviewer' ? roles.storyteller : roles.interviewer;
-		interviewState.update((s) => ({ ...s, role: myRole, partnerName: partner }));
+		if (!roles) return;
+		let myRole = 'answerer';
+		if (roles.noteTaker === $interviewState.studentName) myRole = 'note-taker';
+		else if (roles.asker === $interviewState.studentName) myRole = 'asker';
+		if (($interviewState.roomSize || 2) === 2) {
+			myRole = roles.noteTaker === $interviewState.studentName ? 'interviewer' : 'storyteller';
+		}
+		const partner = myRole === 'interviewer' ? roles.answerer : roles.noteTaker === $interviewState.studentName ? roles.answerer : roles.noteTaker;
+		interviewState.update((s) => ({ ...s, role: myRole, roles, partnerName: partner }));
 		goToScreen('interview');
 	}
 
@@ -152,6 +155,7 @@
 		localStorage.removeItem('ws_interviewPhase');
 		localStorage.removeItem('ws_notesText');
 		localStorage.removeItem('ws_followupText');
+		Object.keys(localStorage).filter((k) => k.startsWith('ws_draft_')).forEach((k) => localStorage.removeItem(k));
 	}
 
 	function stopAllPolling() {
@@ -179,7 +183,7 @@
 			const data = await api('workshop-join', { body: joinBody });
 			const room = data.room || data;
 
-			interviewState.update((s) => ({ ...s, roomId: String(roomId) }));
+			interviewState.update((s) => ({ ...s, roomId: String(roomId), roomSize: room.roomSize || s.roomSize || 2 }));
 
 			if (data.rejoined) {
 				rejoined = true;
@@ -197,9 +201,10 @@
 			startHeartbeat();
 			startNudgePolling();
 
-			const students = extractStudentNames(room.students);
-			interviewState.update((s) => ({ ...s, students }));
-			if (students.length >= 2) {
+			const roomSize = room.roomSize || $interviewState.roomSize || 2;
+			const students = extractStudentNames(room.students, roomSize);
+			interviewState.update((s) => ({ ...s, students, roomSize }));
+			if (students.length >= roomSize) {
 				startInterview();
 			} else {
 				goToScreen('waiting');
@@ -226,7 +231,7 @@
 				body: { sessionId: $interviewState.sessionId, roomId: $interviewState.roomId, studentName: $interviewState.studentName }
 			});
 		} catch {}
-		interviewState.update((s) => ({ ...s, roomId: '', round: 1, students: [], role: null, partnerName: '' }));
+		interviewState.update((s) => ({ ...s, roomId: '', round: 1, students: [], role: null, roles: null, partnerName: '' }));
 		try {
 			const data = await api('workshop-rooms', { params: { sessionId: $interviewState.sessionId } });
 			rooms = data.rooms || [];
@@ -242,7 +247,7 @@
 		clearEphemeralKeys();
 
 		// Extract students from the new room
-		const students = extractStudentNames(newRoom.students);
+		const students = extractStudentNames(newRoom.students, newRoom.roomSize || $interviewState.roomSize || 2);
 		const newRound = newRoom.currentRound || 1;
 
 		// Update store with new room info
@@ -251,7 +256,9 @@
 			roomId: newRoomId,
 			round: newRound,
 			students,
+			roomSize: newRoom.roomSize || s.roomSize || 2,
 			role: null,
+			roles: null,
 			partnerName: ''
 		}));
 
@@ -271,7 +278,7 @@
 		stopAllPolling();
 		clearEphemeralKeys();
 
-		const students = extractStudentNames(newRoom.students);
+		const students = extractStudentNames(newRoom.students, newRoom.roomSize || $interviewState.roomSize || 2);
 		const newRound = newRoom.currentRound || $interviewState.round;
 
 		// Update store with refreshed room data
@@ -279,7 +286,9 @@
 			...s,
 			round: newRound,
 			students,
+			roomSize: newRoom.roomSize || s.roomSize || 2,
 			role: null,
+			roles: null,
 			partnerName: ''
 		}));
 
@@ -351,7 +360,7 @@
 						goToScreen('ended');
 						return;
 					}
-					if (data.rounds) interviewState.update((s) => ({ ...s, totalRounds: data.rounds, prompts: data.prompts || s.prompts }));
+						if (data.rounds) interviewState.update((s) => ({ ...s, totalRounds: data.rounds, roomSize: data.roomSize || s.roomSize || 2, prompts: data.prompts || s.prompts }));
 					rooms = data.rooms || [];
 					if (rooms.length > 0) goToScreen('rooms');
 				}).catch(() => {});
@@ -381,7 +390,7 @@
 			// Session is valid — proceed with resume
 			if (!s.roomId) {
 				// Have session but no room yet — show room picker with fresh data
-				if (validationData.rounds) interviewState.update((st) => ({ ...st, totalRounds: validationData.rounds, prompts: validationData.prompts || st.prompts }));
+				if (validationData.rounds) interviewState.update((st) => ({ ...st, totalRounds: validationData.rounds, roomSize: validationData.roomSize || st.roomSize || 2, prompts: validationData.prompts || st.prompts }));
 				rooms = validationData.rooms || [];
 				goToScreen('rooms');
 				return;
@@ -425,9 +434,10 @@
 					}
 
 					const room = roomData.room || roomData;
-					const students = extractStudentNames(room.students);
+					const roomSize = room.roomSize || validationData.roomSize || $interviewState.roomSize || 2;
+					const students = extractStudentNames(room.students, roomSize);
 					const resumeRound = Math.min(currentRound, $interviewState.totalRounds);
-					interviewState.update((st) => ({ ...st, students, round: resumeRound }));
+					interviewState.update((st) => ({ ...st, students, round: resumeRound, roomSize }));
 
 					// Store server data for InterviewScreen to restore followup/profile/notes state
 					resumeRoomData = {
@@ -436,7 +446,7 @@
 						submissions: room.submissions || []
 					};
 
-					if (students.length >= 2) {
+					if (students.length >= roomSize) {
 						startInterview();
 					} else {
 						goToScreen('waiting');
@@ -456,7 +466,7 @@
 			}
 
 			if (s.phase === 'rooms') {
-				if (validationData.rounds) interviewState.update((st) => ({ ...st, totalRounds: validationData.rounds, prompts: validationData.prompts || st.prompts }));
+				if (validationData.rounds) interviewState.update((st) => ({ ...st, totalRounds: validationData.rounds, roomSize: validationData.roomSize || st.roomSize || 2, prompts: validationData.prompts || st.prompts }));
 				rooms = validationData.rooms || [];
 				goToScreen('rooms');
 				return;
@@ -512,7 +522,7 @@
 			{:else if screen === 'rooms'}
 				<RoomPicker {rooms} onJoinRoom={handleJoinRoom} onSwitchSession={handleSwitchSession} {claimState} onClaimSlot={handleClaimSlot} onCancelClaim={() => (claimState = null)} />
 			{:else if screen === 'waiting'}
-				<WaitingScreen students={$interviewState.students} onChangeRoom={handleChangeRoom} />
+				<WaitingScreen students={$interviewState.students} roomSize={$interviewState.roomSize || 2} onChangeRoom={handleChangeRoom} />
 			{:else if screen === 'interview'}
 				<InterviewScreen onComplete={handleComplete} onChangeRoom={handleChangeRoom} onMoved={handleMoved} onNewPartner={handleNewPartner} {resumeRoomData} {rejoined} />
 			{:else if screen === 'partner-change'}

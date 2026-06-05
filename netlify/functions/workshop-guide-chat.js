@@ -6,6 +6,7 @@
  */
 
 const { getApiKey } = require('./lib/anthropic');
+const { requireDashboardAuth } = require('./lib/dashboard-auth');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -31,8 +32,8 @@ The Career Workshop Dashboard helps instructors run structured peer interview se
 ## Creating a Session
 1. Go to the Sessions tab and click "Create New Session"
 2. Enter a Session Name (e.g., "Tuesday Section 3")
-3. Set the Number of Rooms — one room per pair of students (e.g., 10 rooms for 20 students)
-4. Set the number of Questions (1-10) — each question is one interview round. Students swap interviewer/storyteller roles between rounds.
+3. Set the Number of Rooms and choose Pair or Triad room mode
+4. Set the number of Questions (1-10) — each question has one turn per student in the room.
 5. Customize the interview Prompts or use the defaults. Default prompt: "Tell your partner about a time you had to figure something out where there wasn't a clear answer."
 6. Click Create Session. You'll get a session code and a join link.
 
@@ -42,9 +43,9 @@ The Career Workshop Dashboard helps instructors run structured peer interview se
 - Students enter their name and pick a room (or you can assign rooms)
 
 ## Student Experience
-1. Students join a room and wait for a partner
-2. One student is the Interviewer, the other is the Storyteller
-3. The Storyteller shares a career story; the Interviewer takes notes
+1. Students join a room and wait for the room to fill
+2. Pair rooms rotate interviewer/storyteller roles; triad rooms rotate asker, answerer, and note-taker roles
+3. The answerer shares a career story; the note-taker captures notes
 4. AI generates follow-up questions based on the notes
 5. The Interviewer asks follow-ups and records deeper answers
 6. AI generates a Capability Profile — a summary of the storyteller's strengths in employer language
@@ -104,6 +105,9 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return json(405, { error: 'Method not allowed' });
   }
+
+  const authError = requireDashboardAuth(event);
+  if (authError) return authError;
 
   try {
     const { messages } = JSON.parse(event.body || '{}');

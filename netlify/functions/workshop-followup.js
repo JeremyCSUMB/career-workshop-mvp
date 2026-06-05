@@ -4,7 +4,7 @@
  * POST: Generate AI follow-up questions based on interviewer notes
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
 const { callClaude } = require('./lib/anthropic');
 
 const CORS_HEADERS = {
@@ -39,12 +39,12 @@ exports.handler = async (event) => {
     return json(400, { error: 'Invalid JSON in request body' });
   }
 
-  const { sessionId, roomId, notes } = body;
+  const { sessionId, roomId, notes, round, studentName, aboutStudent } = body;
   if (!sessionId || !roomId || !notes) {
     return json(400, { error: 'Missing required fields: sessionId, roomId, notes' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Check if session has ended
@@ -60,6 +60,8 @@ exports.handler = async (event) => {
     if (!room) {
       return json(404, { error: 'Room not found' });
     }
+    if (!Array.isArray(room.aiFollowUps)) room.aiFollowUps = [];
+    const followupRound = Number(round || room.currentRound || 1);
 
     const aiText = await callClaude(FOLLOWUP_SYSTEM_PROMPT, `Interviewer's notes:\n\n${notes}`);
 
@@ -72,11 +74,17 @@ exports.handler = async (event) => {
     const parsed = JSON.parse(jsonMatch[0]);
     const questions = parsed.questions || [];
 
-    // Store in room state
-    room.aiFollowUps.push({
+    const entry = {
+      round: followupRound,
+      studentName: studentName || null,
+      aboutStudent: aboutStudent || null,
       questions,
       timestamp: new Date().toISOString(),
-    });
+    };
+
+    const existingIdx = room.aiFollowUps.findIndex((f) => Number(f.round || 0) === followupRound);
+    if (existingIdx >= 0) room.aiFollowUps[existingIdx] = entry;
+    else room.aiFollowUps.push(entry);
 
     await store.setJSON(`room:${sessionId}:${roomId}`, room);
     return json(200, { questions });

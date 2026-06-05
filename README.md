@@ -1,6 +1,6 @@
 # Career-Intelligence Workshop MVP
 
-A peer interview tool for career development workshops. Students pair up in breakout rooms — one tells a story, the other captures notes — and AI generates follow-up questions and capability profiles. A facilitator monitors all rooms from a live dashboard with Red/Yellow/Green status classification and can send nudge prompts to rooms that need help.
+A peer interview tool for career development workshops. Students work in pair or triad breakout rooms to ask questions, tell stories, and capture notes. AI generates follow-up questions and capability profiles. A facilitator monitors all rooms from a live dashboard with Red/Yellow/Green status classification and can send nudge prompts to rooms that need help.
 
 **Live URLs:**
 - Student interview: https://career-workshop-mvp.netlify.app/interview
@@ -13,18 +13,17 @@ A peer interview tool for career development workshops. Students pair up in brea
 ### The Workshop Flow
 
 ```
-Facilitator creates session → Students join rooms → Round 1 → Round 2 → Done
-                                                      ↓           ↓
-                                              Interviewer A    Interviewer B
-                                              captures notes   captures notes
-                                                      ↓           ↓
-                                              AI follow-ups    AI follow-ups
-                                                      ↓           ↓
-                                              Capability       Capability
-                                              profile for B    profile for A
+Facilitator creates session → Students join rooms → Question turns → Done
+                                                      ↓
+                                      Pair: interviewer / storyteller
+                                      Triad: asker / answerer / note-taker
+                                                      ↓
+                                              AI follow-ups
+                                                      ↓
+                                      Capability profile for the answerer
 ```
 
-Each student does both roles: interviewer in one round, storyteller in the other. The facilitator watches everything in real time.
+In pair rooms, each student alternates interviewer and storyteller roles. In triad rooms, each student rotates through asker, answerer, and note-taker roles for every discussion question. The facilitator watches everything in real time.
 
 ---
 
@@ -38,7 +37,8 @@ Each student does both roles: interviewer in one round, storyteller in the other
 2. Enter the dashboard password
 3. Under "Create New Session", enter:
    - **Session Name** — e.g., "CST395 Week 10"
-   - **Number of Rooms** — one per student pair (e.g., 12 rooms for 24 students)
+   - **Number of Rooms** — one per breakout room
+   - **Room Mode** — pairs (2 students) or triads (3 students)
 4. Click **Create Session**
 5. You'll see a **Session ID** (e.g., `a1b2c3`) — share this code with students along with their assigned room numbers
 
@@ -96,7 +96,7 @@ After a session ends, view the **Analytics** tab for post-session insights inclu
 1. Go to the **Interview Page** at `/interview`
 2. Enter your **Session Code** and **Name**
 3. Pick an available room from the room picker
-4. Wait for your partner to join (the page polls automatically)
+4. Wait for your partner or triad group to join (the page polls automatically)
 
 #### 2. Round 1 — Interview
 
@@ -123,13 +123,21 @@ Roles are assigned automatically (alphabetical by name — first name alphabetic
 
 Roles swap. The previous storyteller becomes the interviewer and vice versa. Same flow as Round 1.
 
+#### Triad Rooms
+
+In triad mode, students rotate through three roles on every discussion question:
+
+- **Asker** — reads the prompt and asks generated follow-up questions.
+- **Answerer** — tells the story and answers follow-ups.
+- **Note-taker** — captures notes, submits follow-up notes, and generates the capability profile.
+
 #### 4. Nudges
 
 If the facilitator sends a nudge, it appears as a banner at the top of your screen. Read it, then dismiss or let it auto-dismiss after 30 seconds.
 
 #### 5. Notes Auto-Save
 
-Your notes auto-save after you stop typing, so you won't lose work if you accidentally close the tab. Your session also persists in localStorage — refreshing the page resumes where you left off.
+Your notes auto-save after you stop typing, so you won't lose work if you accidentally close the tab. Your session also persists in localStorage — refreshing the page resumes where you left off. Drafts are scoped by session, room, student, round, and field so work from one room or turn does not overwrite another.
 
 #### 6. Disconnection & Reconnection
 
@@ -227,7 +235,8 @@ All data lives in a single Blobs store called `workshop` with composite keys:
   "name": "CST395 Week 10",
   "created": "2026-03-20T10:00:00Z",
   "roomCount": 12,
-  "rounds": 2,
+  "roomSize": 3,
+  "rounds": 3,
   "questions": 1,
   "prompts": ["Tell your partner about a time you had to figure something out..."],
   "ended": false,
@@ -240,7 +249,8 @@ All data lives in a single Blobs store called `workshop` with composite keys:
 {
   "id": "1",
   "sessionId": "a1b2c3",
-  "students": { "student1": "Alice Smith", "student2": "Bob Jones" },
+  "roomSize": 3,
+  "students": { "student1": "Alice Smith", "student2": "Bob Jones", "student3": "Casey Lee" },
   "currentRound": 1,
   "roundStartTime": "2026-03-20T10:05:00Z",
   "lastHeartbeat": "2026-03-20T10:12:30Z",
@@ -248,7 +258,8 @@ All data lives in a single Blobs store called `workshop` with composite keys:
   "submissions": [
     {
       "studentName": "Alice Smith",
-      "role": "interviewer",
+      "aboutStudent": "Bob Jones",
+      "role": "note-taker",
       "notes": "Bob described a time when...",
       "wordCount": 87,
       "timestamp": "2026-03-20T10:08:00Z",
@@ -256,7 +267,7 @@ All data lives in a single Blobs store called `workshop` with composite keys:
     }
   ],
   "aiFollowUps": [
-    { "questions": ["What was the hardest part?", "..."], "timestamp": "..." }
+    { "round": 1, "questions": ["What was the hardest part?", "..."], "timestamp": "..." }
   ],
   "capabilityProfiles": [
     {
@@ -277,7 +288,8 @@ All data lives in a single Blobs store called `workshop` with composite keys:
   ],
   "presence": {
     "student1": { "online": true, "lastSeen": "2026-03-20T10:12:30Z" },
-    "student2": { "online": true, "lastSeen": "2026-03-20T10:12:28Z" }
+    "student2": { "online": true, "lastSeen": "2026-03-20T10:12:28Z" },
+    "student3": { "online": true, "lastSeen": "2026-03-20T10:12:26Z" }
   }
 }
 ```
@@ -288,7 +300,10 @@ All endpoints are at `/.netlify/functions/`:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `workshop-session` | POST | Create session: `{ name, roomCount, rounds?, questions?, prompts? }` |
+| `auth-dashboard-login` | POST | Facilitator login: `{ password }` |
+| `auth-dashboard-session` | GET | Check facilitator dashboard auth |
+| `auth-dashboard-logout` | POST | Clear facilitator dashboard auth |
+| `workshop-session` | POST | Create session: `{ name, roomCount, roomSize?, rounds?, questions?, prompts? }` |
 | `workshop-session` | GET | List all sessions |
 | `workshop-session` | DELETE | End session: `{ sessionId }` |
 | `workshop-join` | POST | Join room: `{ sessionId, roomId, studentName }` |
@@ -303,7 +318,7 @@ All endpoints are at `/.netlify/functions/`:
 | `workshop-nudge` | POST | Send nudge: `{ sessionId, roomId, message }` |
 | `workshop-nudge` | GET | Poll nudges: `?sessionId=xxx&roomId=yyy` |
 | `workshop-move-student` | POST | Move student: `{ sessionId, studentName, fromRoomId, toRoomId }` |
-| `workshop-followup` | POST | AI follow-ups: `{ sessionId, roomId, notes }` |
+| `workshop-followup` | POST | AI follow-ups: `{ sessionId, roomId, notes, round? }` |
 | `workshop-profile` | POST | Capability profile: `{ sessionId, roomId, studentName, round }` |
 | `workshop-analytics` | GET | Session analytics: `?sessionId=xxx` |
 
@@ -335,18 +350,21 @@ Three AI functions, all using Claude Sonnet 4.6 via a shared wrapper (`netlify/f
 ### Role Assignment
 
 Roles are determined by alphabetical sort of student names:
-- **Round 1:** First alphabetically = interviewer
-- **Round 2:** Roles swap
+- **Pair turn 1:** First alphabetically interviews; second answers
+- **Pair turn 2:** Roles swap
+- **Triad turn 1:** A asks, B answers, C takes notes
+- **Triad turn 2:** B asks, C answers, A takes notes
+- **Triad turn 3:** C asks, A answers, B takes notes
 
 This is computed client-side in both interview and dashboard stores to ensure consistency.
 
 ### Round Advancement
 
-The interviewer drives the flow. When they click "End Round & Generate Profile":
+The note-taker/interviewer drives the flow. When they click "End Round & Generate Profile":
 1. Backend generates the capability profile
 2. Backend sets `room.currentRound` to 2 (or 3 if round 2 is done)
-3. The storyteller's client polls `workshop-room` every 5 seconds and detects the round change
-4. Both clients transition to the next round (or completion screen)
+3. The asker/answerer clients poll `workshop-room` every 5 seconds and detect the round change
+4. All clients transition to the next turn, next question, or completion screen
 
 ---
 
@@ -362,7 +380,7 @@ Set these in the Netlify dashboard under **Site settings > Environment variables
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth 2.0 client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth 2.0 client secret |
 | `SESSION_SECRET` | Yes | Secret for signing session JWTs |
-| `OAUTH_REDIRECT_URI` | Yes | OAuth callback URL (e.g., `https://your-site.netlify.app/.netlify/functions/auth-callback`) |
+| `DASHBOARD_PASSWORD` | Yes | Facilitator dashboard password |
 
 ### Getting a Netlify PAT
 
@@ -388,6 +406,10 @@ npm install
 #   ANTHROPIC_API_KEY=your-key
 #   SITE_ID=your-netlify-site-id
 #   NETLIFY_PAT=your-netlify-pat
+#   GOOGLE_CLIENT_ID=your-google-client-id
+#   GOOGLE_CLIENT_SECRET=your-google-client-secret
+#   SESSION_SECRET=your-session-secret
+#   DASHBOARD_PASSWORD=your-dashboard-password
 
 # Run locally with Netlify Dev
 npx netlify dev
@@ -424,8 +446,8 @@ npx netlify deploy --prod
 
 ## Security Notes
 
-- Student authentication uses Google OAuth 2.0 with HTTP-only session cookies (JWT, 8-hour expiry). The dashboard still uses a simple client-side password check for MVP.
+- Student authentication uses Google OAuth 2.0 with HTTP-only session cookies (JWT, 8-hour expiry). The facilitator dashboard password is verified server-side and stored in an HTTP-only dashboard session cookie.
 - The `NETLIFY_PAT` has broad access to your Netlify account. For production, scope it down or use a service-level token.
 - Student names are stored in Netlify Blobs with no encryption. For production, consider PII handling requirements.
-- CORS is set to `*` for all function endpoints. For production, restrict to your domain.
+- Dashboard-only write/monitor endpoints require the dashboard session cookie. Student workflow endpoints remain available to authenticated student pages.
 - No rate limiting on API endpoints. For production, add rate limiting to prevent abuse.

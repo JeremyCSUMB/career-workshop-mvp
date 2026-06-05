@@ -4,7 +4,8 @@
  * GET: Return single room detail
  */
 
-const { getStore } = require('@netlify/blobs');
+const { getWorkshopStore } = require('./lib/store');
+const { normalizeRoom } = require('./lib/rooms');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,32 +35,16 @@ exports.handler = async (event) => {
     return json(400, { error: 'Missing required query parameters: sessionId, roomId' });
   }
 
-  const store = getStore({ name: 'workshop', consistency: 'strong', siteID: process.env.SITE_ID, token: process.env.NETLIFY_PAT });
+  const store = getWorkshopStore();
 
   try {
     // Check if session has ended
     const session = await store.get(`session:${sessionId}`, { type: 'json' });
     const ended = !!session?.ended;
 
-    const room = await store.get(`room:${sessionId}:${roomId}`, { type: 'json' });
+    const room = normalizeRoom(await store.get(`room:${sessionId}:${roomId}`, { type: 'json' }), session || {});
     if (!room) {
       return json(404, { error: 'Room not found' });
-    }
-
-    // Normalize fields for older rooms missing newer keys
-    if (!Array.isArray(room.submissions)) room.submissions = [];
-    if (!Array.isArray(room.aiFollowUps)) room.aiFollowUps = [];
-    if (!Array.isArray(room.capabilityProfiles)) {
-      room.capabilityProfiles = room.capabilityProfile ? [room.capabilityProfile] : [];
-    }
-
-    // Normalize presence for old rooms
-    const defaultPresence = { online: false, lastSeen: null };
-    if (!room.presence) {
-      room.presence = { student1: { ...defaultPresence }, student2: { ...defaultPresence } };
-    } else {
-      if (!room.presence.student1) room.presence.student1 = { ...defaultPresence };
-      if (!room.presence.student2) room.presence.student2 = { ...defaultPresence };
     }
 
     // Look up user profiles for authenticated students
