@@ -39,6 +39,10 @@
 		return Object.values(studentsObj).filter(Boolean);
 	}
 
+	function buildAuthStudentList(room) {
+		return room.authenticatedStudents || {};
+	}
+
 	function getRoomStatus(room) {
 		const classifications = room.classifications || [];
 		if (classifications.length === 0) return { status: '', reasoning: '', suggestedNudge: null };
@@ -143,8 +147,10 @@
 			});
 
 			rooms = arr;
-		} catch {
-			/* silent */
+			liveConnected = true;
+		} catch (err) {
+			console.error('Dashboard room refresh failed:', err);
+			liveConnected = false;
 		}
 	}
 

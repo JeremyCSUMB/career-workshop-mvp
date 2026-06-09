@@ -50,13 +50,20 @@ exports.handler = async (event) => {
     const flagged = [];
 
     for (const blob of blobs) {
-      const room = normalizeRoom(await store.get(blob.key, { type: 'json' }), session || {});
+      const roomId = blob.key.split(':').pop();
+      const [roomData, heartbeat] = await Promise.all([
+        store.get(blob.key, { type: 'json' }),
+        store.get(`heartbeat:${sessionId}:${roomId}`, { type: 'json' }).catch(() => null),
+      ]);
+      const room = normalizeRoom(roomData, session || {});
       if (!room) continue;
 
-      // Skip rooms with no heartbeat (never started) or no students
-      if (!room.lastHeartbeat || getStudentNames(room.students, room.roomSize).length === 0) continue;
+      const lastHeartbeat = heartbeat?.timestamp || room.lastHeartbeat || null;
 
-      const heartbeatAge = now - new Date(room.lastHeartbeat);
+      // Skip rooms with no heartbeat (never started) or no students
+      if (!lastHeartbeat || getStudentNames(room.students, room.roomSize).length === 0) continue;
+
+      const heartbeatAge = now - new Date(lastHeartbeat);
       if (heartbeatAge <= INACTIVITY_THRESHOLD_MS) continue;
 
       // Check if already classified as red from inactivity
